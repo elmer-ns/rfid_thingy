@@ -7,12 +7,21 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
+use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
+use esp_hal::delay::Delay;
+use esp_hal::gpio::{Level, Output, OutputConfig, OutputPin, Pin};
+use esp_hal::peripherals::GPIO;
+use esp_hal::spi::master::{Config, Spi};
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
+use mfrc522::Mfrc522;
+use mfrc522::comm::blocking::i2c::I2cInterface;
+use mfrc522::comm::blocking::spi::SpiInterface;
 
 extern crate alloc;
 
@@ -40,6 +49,21 @@ async fn main(spawner: Spawner) -> ! {
     let (mut _wifi_controller, _interfaces) =
         esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default())
             .expect("Failed to initialize Wi-Fi controller");
+
+    //let itf = I2cInterface::new(i2c, 0x28);
+
+    let spi: Spi<'_, esp_hal::Blocking> = Spi::new(peripherals.SPI2, Config::default()).unwrap();
+    
+    let cs_pin = Output::new(peripherals.GPIO10, Level::Low, OutputConfig::default());
+
+    let device = ExclusiveDevice::new(spi, cs_pin, Delay::new()).unwrap();
+    let itf = SpiInterface::new(device);
+
+    let mut mfrc522 = Mfrc522::new(itf).init().unwrap();
+
+    let mfrc522_version = mfrc522.version().unwrap();
+
+    info!("mfrc522_version={}", mfrc522_version);
 
     loop {
         info!("Hello world!");
