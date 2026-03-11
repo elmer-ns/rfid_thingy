@@ -7,21 +7,18 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
-use embedded_hal_bus::spi::{self, DeviceError, ExclusiveDevice};
-use embedded_io::Read;
+use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::delay::Delay;
-use esp_hal::gpio::{Level, Output, OutputConfig, OutputPin, Pin};
-use esp_hal::peripherals::GPIO;
+use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::spi::master::{Config, Spi};
 use esp_hal::timer::timg::TimerGroup;
+use esp_println::println;
 use log::{info, warn};
-use mfrc522::Mfrc522;
-use mfrc522::comm::blocking::i2c::I2cInterface;
+use mfrc522::comm::Interface;
+use mfrc522::{Initialized, Mfrc522, Uid};
 use mfrc522::comm::blocking::spi::SpiInterface;
 
 extern crate alloc;
@@ -33,7 +30,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
 #[esp_rtos::main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(_spawner: Spawner) -> ! {
     esp_println::logger::init_logger_from_env();
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -65,19 +62,42 @@ async fn main(spawner: Spawner) -> ! {
     info!("mfrc522_version={}", mfrc522_version);
 
     loop {
-        if new_card_present(&mut mfrc522) {
-            info!("new card!");
-        }
+        let read = read(&mut mfrc522, 0);
 
-        Timer::after(Duration::from_secs(1)).await;
+        //Timer::after(Duration::from_secs(1)).await;
     }
 }
 
-type Reader<'a> = Mfrc522<SpiInterface<ExclusiveDevice<Spi<'a, esp_hal::Blocking>, Output<'a>, Delay>, mfrc522::comm::blocking::spi::DummyDelay>, mfrc522::Initialized>;
+fn read<E, COMM: Interface<Error = E>>(reader: &mut Mfrc522<COMM, Initialized>, block: u8) -> Option<[u8; 16]> {
+    let Ok(atqa) = reader.new_card_present() else {return None};
 
-fn new_card_present(reader: &mut Reader) -> bool {
-    match reader.new_card_present() {
-        Ok(_) => true,
-        Err(_) => false,
+    let Ok(uid) = reader.select(&atqa) else {return None};
+
+    let mut r = [0; 16];
+
+    let _ = authenticate(reader, &uid, block,|reader| {
+        let read = reader.mf_read(block)?;
+
+        r = read;
+
+        println!("{:?}", read);
+
+        Ok(())
+    });
+
+    Some(r)
+}
+
+fn authenticate<E, COMM: Interface<Error = E>, F: FnOnce(&mut Mfrc522<COMM, Initialized>) -> Result<(), mfrc522::Error<E>>> (reader: &mut Mfrc522<COMM, Initialized>, uid: &Uid, block: u8, action: F) -> Result<(), mfrc522::Error<E>> {
+    let key = [0xFF; 6];
+
+    if reader.mf_authenticate(uid, block, &key).is_ok() {
+        action(reader)?;
+    } else {
+        warn!("Could not authenticate")
     }
+
+    reader.hlta()?;
+    reader.stop_crypto1()?;
+    Ok(())
 }
