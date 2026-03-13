@@ -7,6 +7,8 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+use core::fmt::Debug;
+
 use embassy_executor::Spawner;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_backtrace as _;
@@ -18,7 +20,7 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_println::println;
 use log::{info, warn};
 use mfrc522::comm::Interface;
-use mfrc522::{Initialized, Mfrc522, Uid};
+use mfrc522::{AtqA, Initialized, Mfrc522, Uid};
 use mfrc522::comm::blocking::spi::SpiInterface;
 
 extern crate alloc;
@@ -55,47 +57,104 @@ async fn main(_spawner: Spawner) -> ! {
     let device = ExclusiveDevice::new(spi, cs_pin, Delay::new()).unwrap();
     let itf = SpiInterface::new(device);
 
-    let mut mfrc522: Mfrc522<SpiInterface<ExclusiveDevice<Spi<'_, esp_hal::Blocking>, Output<'_>, Delay>, mfrc522::comm::blocking::spi::DummyDelay>, mfrc522::Initialized> = Mfrc522::new(itf).init().unwrap();
+    let mut reader: Mfrc522<SpiInterface<ExclusiveDevice<Spi<'_, esp_hal::Blocking>, Output<'_>, Delay>, mfrc522::comm::blocking::spi::DummyDelay>, mfrc522::Initialized> = Mfrc522::new(itf).init().unwrap();
 
-    let mfrc522_version = mfrc522.version().unwrap();
+    let mfrc522_version = reader.version().unwrap();
 
     info!("mfrc522_version={}", mfrc522_version);
 
-    loop {
-        let read = read(&mut mfrc522, 0);
+    let mut atqa = None;
 
+    while atqa.is_none() {
+        atqa = reader.new_card_present().ok();
+    }
+
+    let Some(atqa) = atqa else {
+        panic!()
+    };
+
+    let uid = reader.select(&atqa).unwrap();
+
+    let k0 = [0xFF; 6];
+
+    if let Ok(()) = reader.mf_authenticate(&uid, 0, &k0) {
+        let read = reader.mf_read(0).ok();
+        println!("{:?}", read);
+
+        let read = reader.mf_read(1).ok();
+        println!("{:?}", read);
+
+        let read = reader.mf_read(2).ok();
+        println!("{:?}", read);
+
+        let read = reader.mf_read(3).ok();
+        println!("{:?}", read);
+    }
+
+    if let Ok(()) = reader.mf_authenticate(&uid, 4, &k0) {
+        let read = reader.mf_read(4).ok();
+        println!("{:?}", read);
+
+        let read = reader.mf_read(5).ok();
+        println!("{:?}", read);
+
+        let read = reader.mf_read(6).ok();
+        println!("{:?}", read);
+
+        let read = reader.mf_read(7).ok();
+        println!("{:?}", read);
+    }
+
+
+    /*let read = read_ready(&mut mfrc522, &uid, 0,  &[0xFF as u8; 6]);
+    println!("0: {:?}", read);
+
+    let read = read_ready(&mut mfrc522, &uid, 4, &[0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7]);
+    println!("1: {:?}", read);*/
+
+    /*for i in 0..u8::MAX {
+        let read = read_ready(&mut mfrc522, &uid, i);
+        println!("{i}: {:?}", read);
+    }*/
+
+    loop {
         //Timer::after(Duration::from_secs(1)).await;
     }
 }
 
-fn read<E, COMM: Interface<Error = E>>(reader: &mut Mfrc522<COMM, Initialized>, block: u8) -> Option<[u8; 16]> {
-    let Ok(atqa) = reader.new_card_present() else {return None};
-
-    let Ok(uid) = reader.select(&atqa) else {return None};
-
+fn read_ready<E: Debug, COMM: Interface<Error = E>>(reader: &mut Mfrc522<COMM, Initialized>, uid: &Uid, block: u8, key: &[u8; 6]) -> Option<[u8; 16]> {
     let mut r = [0; 16];
 
-    let _ = authenticate(reader, &uid, block,|reader| {
-        let read = reader.mf_read(block)?;
+    match authenticate(reader, &uid, block, key,|reader| {
+        let read = reader.mf_read(block).unwrap();
 
         r = read;
 
-        println!("{:?}", read);
-
         Ok(())
-    });
-
-    Some(r)
+    }) {
+        Ok(_) => Some(r),
+        Err(_) => None,
+    }
 }
 
-fn authenticate<E, COMM: Interface<Error = E>, F: FnOnce(&mut Mfrc522<COMM, Initialized>) -> Result<(), mfrc522::Error<E>>> (reader: &mut Mfrc522<COMM, Initialized>, uid: &Uid, block: u8, action: F) -> Result<(), mfrc522::Error<E>> {
-    let key = [0xFF; 6];
+fn read_once<E: Debug, COMM: Interface<Error = E>>(reader: &mut Mfrc522<COMM, Initialized>, atqa: &AtqA, key: &[u8; 6], block: u8) -> Option<[u8; 16]> {
+    let Ok(uid) = reader.select(&atqa) else {return None};
 
-    if reader.mf_authenticate(uid, block, &key).is_ok() {
-        action(reader)?;
-    } else {
-        warn!("Could not authenticate")
+    read_ready(reader, &uid, block, key)
+}
+
+fn authenticate<E, COMM: Interface<Error = E>, F: FnOnce(&mut Mfrc522<COMM, Initialized>) -> Result<(), mfrc522::Error<E>>> (reader: &mut Mfrc522<COMM, Initialized>, uid: &Uid, block: u8, key: &[u8; 6], action: F) -> Result<(), mfrc522::Error<E>> {
+    //let key = [0xFF; 6];
+    
+    match reader.mf_authenticate(uid, block, key) {
+        Ok(_) => {},
+        Err(err) => {
+            warn!("Could not authenticate");
+            return Result::Err(err);
+        },
     }
+
+    action(reader)?;
 
     reader.hlta()?;
     reader.stop_crypto1()?;
