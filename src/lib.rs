@@ -2,16 +2,17 @@
 
 use core::fmt::Debug;
 
-use alloc::vec::Vec;
 use embassy_time::{Duration, Timer};
 use mfrc522::{AtqA, Initialized, Mfrc522, Uid, comm::Interface};
 
 extern crate alloc;
 
+/// Wrapper around a Mfrc522 reader, with any supported interface
 pub struct Reader<E: Debug, COMM: Interface<Error = E>> {
     reader: Mfrc522<COMM, Initialized>,    
 }
 
+/// Represents the interaction with a Mifare Rfid Card, and is used to interact with a card that has been detected by the reader
 pub struct CardInteraction<'r, E: Debug, COMM: Interface<Error = E>> {
     reader: &'r mut Mfrc522<COMM, Initialized>,
 
@@ -20,7 +21,21 @@ pub struct CardInteraction<'r, E: Debug, COMM: Interface<Error = E>> {
     auth_section: Option<u8>,
 }
 
-impl<'r, E: Debug, COMM: Interface<Error = E>> CardInteraction<'r, E, COMM> {}
+impl<'r, E: Debug, COMM: Interface<Error = E>> CardInteraction<'r, E, COMM> {
+    /// Select/re-select this card.
+    fn select(&mut self) -> Result<(), mfrc522::Error<E>> {
+        if self.uid.is_some() {
+            self.reader.hlta()?;
+        }
+
+        let uid = self.reader.select(&self.atqa)?;
+        self.uid = Some(uid);
+
+        Ok(())
+    }
+
+    fn auth_sector(&mut self, section: u8, key: &SectorKey) -> 
+}
 
 type Sector = [Block; SECTOR_SIZE];
 type Block = [u8; BLOCK_SIZE];
@@ -44,11 +59,10 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
     }
 }
 
-const N_SECTORS: usize = 16;
 const BLOCK_SIZE: usize = 16;
 const SECTOR_SIZE: usize = 4;
 
-type Tag = Vec<Sector>;
+type Tag = [Sector; 16];
 
 type SectorKey = [u8; 6];
-type TagKey = Vec<SectorKey>;
+type TagKey = [SectorKey; 16];
