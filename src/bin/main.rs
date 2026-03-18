@@ -22,6 +22,7 @@ use log::{info, warn};
 use mfrc522::comm::Interface;
 use mfrc522::{AtqA, Initialized, Mfrc522, Uid};
 use mfrc522::comm::blocking::spi::SpiInterface;
+use rfid_thingy::Reader;
 
 extern crate alloc;
 
@@ -73,49 +74,13 @@ async fn main(_spawner: Spawner) -> ! {
         panic!()
     };
 
-    let uid = reader.select(&atqa).unwrap();
-
-    let k0 = [0xFF; 6];
-
-    if let Ok(()) = reader.mf_authenticate(&uid, 0, &k0) {
-        let read = reader.mf_read(0).ok();
-        println!("{:?}", read);
-
-        let read = reader.mf_read(1).ok();
-        println!("{:?}", read);
-
-        let read = reader.mf_read(2).ok();
-        println!("{:?}", read);
-
-        let read = reader.mf_read(3).ok();
-        println!("{:?}", read);
+    let mut uid = Err(mfrc522::Error::Timeout);
+    while uid.is_err() {
+        uid = reader.select(&atqa)
     }
+    let uid = uid.unwrap();
 
-    if let Ok(()) = reader.mf_authenticate(&uid, 4, &k0) {
-        let read = reader.mf_read(4).ok();
-        println!("{:?}", read);
-
-        let read = reader.mf_read(5).ok();
-        println!("{:?}", read);
-
-        let read = reader.mf_read(6).ok();
-        println!("{:?}", read);
-
-        let read = reader.mf_read(7).ok();
-        println!("{:?}", read);
-    }
-
-
-    /*let read = read_ready(&mut mfrc522, &uid, 0,  &[0xFF as u8; 6]);
-    println!("0: {:?}", read);
-
-    let read = read_ready(&mut mfrc522, &uid, 4, &[0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7]);
-    println!("1: {:?}", read);*/
-
-    /*for i in 0..u8::MAX {
-        let read = read_ready(&mut mfrc522, &uid, i);
-        println!("{i}: {:?}", read);
-    }*/
+    let reader = Reader::new(comm);
 
     loop {
         //Timer::after(Duration::from_secs(1)).await;

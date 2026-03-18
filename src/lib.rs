@@ -2,15 +2,18 @@
 
 use core::{array, fmt::Debug};
 
-use mfrc522::{Initialized, Mfrc522, Uid, comm::Interface};
+use alloc::vec::Vec;
+use embassy_time::{Duration, Timer};
+use mfrc522::{AtqA, Initialized, Mfrc522, Uid, comm::Interface};
+
+extern crate alloc;
 
 pub struct Reader<E: Debug, COMM: Interface<Error = E>> {
     reader: Mfrc522<COMM, Initialized>,
 }
 
-type Sector = [Block; 4];
-type Block = [u8;16];
-type Key = [u8; 6];
+type Sector = [Block; SECTOR_SIZE];
+type Block = [u8; BLOCK_SIZE];
 
 impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
     pub fn new(comm: COMM) -> Option<Self> {
@@ -19,7 +22,20 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
         Some(Self { reader })
     }
 
-    pub fn read_block(&mut self, uid: &Uid, block: u8, key: &Key) -> Result<Block, mfrc522::Error<E>> {
+    pub async fn new_card_present_async(&mut self) -> Result<AtqA, mfrc522::Error<E>> {
+        loop {
+            match self.new_card_present() {
+                Err(mfrc522::Error::Timeout) => Timer::after(Duration::from_millis(20)).await,
+                result => return result
+            }
+        }
+    }
+
+    pub fn new_card_present(&mut self) -> Result<AtqA, mfrc522::Error<E>> {
+        self.reader.new_card_present()
+    }
+
+    pub fn read_block(&mut self, uid: &Uid, block: u8, key: &SectorKey) -> Result<Block, mfrc522::Error<E>> {
         let mut b = [0; 16];
 
         self.handle_auth(uid, block, key, |reader| {
@@ -33,7 +49,7 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
         Ok(b)
     }
 
-    pub fn read_sector(&mut self, uid: &Uid, sector: u8, key: &Key) -> Result<Sector, mfrc522::Error<E>> {
+    pub fn read_sector(&mut self, uid: &Uid, sector: u8, key: &SectorKey) -> Result<Sector, mfrc522::Error<E>> {
         let mut s: Sector = array::from_fn(|_| [0; 16]);
 
         let block = sector * 4;
@@ -52,14 +68,38 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
         Ok(s)
     }
 
-    fn handle_auth<F: FnOnce(&mut Mfrc522<COMM, Initialized>) -> Result<(), mfrc522::Error<E>>>(&mut self, uid: &Uid, block: u8, key: &Key, action: F) -> Result<(), mfrc522::Error<E>> {
+    pub fn read_tag(&mut self, uid: &Uid, sector: u8, key: &TagKey) -> Result<Tag, mfrc522::Error<E>> {
+        let mut tag = Vec::new();
+
+        for (sector, sector_key) in key.iter().enumerate() {
+            let block = (sector * 4) as u8;
+            self.handle_auth(uid, block, sector_key, |reader| {
+                tag.push([reader.mf_read(block)?, reader.mf_read(block+1)?, reader.mf_read(block+2)?, reader.mf_read(block+3)?]);
+
+                Ok(())
+            })?;
+        }
+
+        Ok(tag)
+    }
+
+    fn handle_auth<T, F: FnOnce(&mut Mfrc522<COMM, Initialized>) -> Result<T, mfrc522::Error<E>>>(&mut self, uid: &Uid, block: u8, key: &SectorKey, action: F) -> Result<T, mfrc522::Error<E>> {
         self.reader.mf_authenticate(uid, block, key)?;
 
-        action(&mut self.reader)?;
+        let out = action(&mut self.reader);
 
         self.reader.hlta()?;
 
-        Ok(())
+        Ok(out?)
     }
 
 }
+
+const N_SECTORS: usize = 16;
+const BLOCK_SIZE: usize = 16;
+const SECTOR_SIZE: usize = 4;
+
+type Tag = Vec<Sector>;
+
+type SectorKey = [u8; 6];
+type TagKey = Vec<SectorKey>;
