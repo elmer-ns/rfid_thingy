@@ -4,12 +4,13 @@ use core::{array, fmt::Debug};
 
 use alloc::vec::Vec;
 use embassy_time::{Duration, Timer};
+use log::info;
 use mfrc522::{AtqA, Initialized, Mfrc522, Uid, comm::Interface};
 
 extern crate alloc;
 
 pub struct Reader<E: Debug, COMM: Interface<Error = E>> {
-    reader: Mfrc522<COMM, Initialized>,
+    pub reader: Mfrc522<COMM, Initialized>,
 }
 
 type Sector = [Block; SECTOR_SIZE];
@@ -20,6 +21,10 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
         let reader = Mfrc522::new(comm).init().ok()?;
 
         Some(Self { reader })
+    }
+
+    pub fn select(&mut self, atqa: &AtqA) -> Result<Uid, mfrc522::Error<E>> {
+        self.reader.select(atqa)
     }
 
     pub async fn new_card_present_async(&mut self) -> Result<AtqA, mfrc522::Error<E>> {
@@ -46,6 +51,8 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
             Ok(())
         })?;
 
+        //self.reader.hlta()?;
+
         Ok(b)
     }
 
@@ -65,20 +72,25 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
             Ok(())
         })?;
 
+        //self.reader.hlta()?;
+
         Ok(s)
     }
 
-    pub fn read_tag(&mut self, uid: &Uid, sector: u8, key: &TagKey) -> Result<Tag, mfrc522::Error<E>> {
+    pub fn read_tag(&mut self, uid: &Uid, key: &TagKey) -> Result<Tag, mfrc522::Error<E>> {
         let mut tag = Vec::new();
 
         for (sector, sector_key) in key.iter().enumerate() {
             let block = (sector * 4) as u8;
+            info!("sector {}", sector);
             self.handle_auth(uid, block, sector_key, |reader| {
-                tag.push([reader.mf_read(block)?, reader.mf_read(block+1)?, reader.mf_read(block+2)?, reader.mf_read(block+3)?]);
+                tag.push([reader.mf_read(block).unwrap(), reader.mf_read(block+1).unwrap(), reader.mf_read(block+2).unwrap(), reader.mf_read(block+3).unwrap()]);
 
                 Ok(())
-            })?;
+            }).unwrap();
         }
+
+        //self.reader.hlta()?;
 
         Ok(tag)
     }
@@ -88,7 +100,7 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
 
         let out = action(&mut self.reader);
 
-        self.reader.hlta()?;
+        self.reader.stop_crypto1()?;
 
         Ok(out?)
     }
