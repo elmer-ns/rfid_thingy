@@ -17,7 +17,6 @@ use esp_hal::delay::Delay;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::spi::master::{Config, Spi};
 use esp_hal::timer::timg::TimerGroup;
-use esp_println::println;
 use log::{info, warn};
 use mfrc522::comm::Interface;
 use mfrc522::{AtqA, Initialized, Mfrc522, Uid};
@@ -58,29 +57,9 @@ async fn main(_spawner: Spawner) -> ! {
     let device = ExclusiveDevice::new(spi, cs_pin, Delay::new()).unwrap();
     let itf = SpiInterface::new(device);
 
-    let mut reader: Mfrc522<SpiInterface<ExclusiveDevice<Spi<'_, esp_hal::Blocking>, Output<'_>, Delay>, mfrc522::comm::blocking::spi::DummyDelay>, mfrc522::Initialized> = Mfrc522::new(itf).init().unwrap();
-
-    let mfrc522_version = reader.version().unwrap();
-
     info!("mfrc522_version={}", mfrc522_version);
 
-    let mut atqa = None;
-
-    while atqa.is_none() {
-        atqa = reader.new_card_present().ok();
-    }
-
-    let Some(atqa) = atqa else {
-        panic!()
-    };
-
-    let mut uid = Err(mfrc522::Error::Timeout);
-    while uid.is_err() {
-        uid = reader.select(&atqa)
-    }
-    let uid = uid.unwrap();
-
-    let reader = Reader::new(comm);
+    let reader = Reader::new(itf);
 
     loop {
         //Timer::after(Duration::from_secs(1)).await;
