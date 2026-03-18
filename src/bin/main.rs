@@ -7,9 +7,6 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-use core::fmt::Debug;
-use core::panic;
-
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -19,10 +16,7 @@ use esp_hal::delay::Delay;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::spi::master::{Config, Spi};
 use esp_hal::timer::timg::TimerGroup;
-use esp_println::println;
-use log::{info, warn};
-use mfrc522::comm::Interface;
-use mfrc522::{AtqA, Initialized, Mfrc522, Uid};
+use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
 use rfid_thingy::Reader;
 
@@ -65,7 +59,7 @@ async fn main(_spawner: Spawner) -> ! {
     loop {
         info!("waiting...");
 
-        reader.wait_for_card().await;
+        reader.wait_for_card().await.unwrap();
 
         info!("found card!");
 
