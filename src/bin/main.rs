@@ -63,23 +63,11 @@ async fn main(_spawner: Spawner) -> ! {
     let mut reader = Reader::new(itf).unwrap();
 
     loop {
-        info!("ready!");
+        info!("waiting...");
 
-        let atqa = reader.new_card_present_async().await.unwrap();
+        reader.wait_for_card().await;
 
-        info!("new card!");
-
-        let Ok(uid) = reader.select(&atqa) else {continue;};
-
-        info!("successfull select");
-
-        let test = reader.read_sector(&uid, 0, &[0xFF; 6]).unwrap();
-        println!("{:?}", test);
-
-        let test = reader.read_sector(&uid, 1, &[0xFF; 6]).unwrap();
-        println!("{:?}", test);
-
-        warn!("done!");
+        info!("found card!");
 
         Timer::after(Duration::from_secs(1)).await;
     }
