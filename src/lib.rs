@@ -62,15 +62,15 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
         let block = sector * 4;
 
         self.handle_auth(uid, block, key, |reader| {
-            let b0 = reader.mf_read(block)?;
-            let b1 = reader.mf_read(block+1)?;
-            let b2 = reader.mf_read(block+2)?;
-            let b3 = reader.mf_read(block+3)?;
+            let b0 = reader.mf_read(block).unwrap();
+            let b1 = reader.mf_read(block+1).unwrap();
+            let b2 = reader.mf_read(block+2).unwrap();
+            let b3 = reader.mf_read(block+3).unwrap();
 
             s = [b0, b1, b2, b3];
 
             Ok(())
-        })?;
+        }).unwrap();
 
         //self.reader.hlta()?;
 
@@ -96,11 +96,11 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
     }
 
     fn handle_auth<T, F: FnOnce(&mut Mfrc522<COMM, Initialized>) -> Result<T, mfrc522::Error<E>>>(&mut self, uid: &Uid, block: u8, key: &SectorKey, action: F) -> Result<T, mfrc522::Error<E>> {
-        self.reader.mf_authenticate(uid, block, key)?;
+        self.reader.mf_authenticate(uid, block, key).unwrap();
 
         let out = action(&mut self.reader);
 
-        self.reader.stop_crypto1()?;
+        self.reader.stop_crypto1().unwrap();
 
         Ok(out?)
     }
