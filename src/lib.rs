@@ -97,7 +97,7 @@ impl<'r, E: Debug, COMM: Interface<Error = E>> AuthenticatedSector<'r, E, COMM> 
         let mut sector = [0u8; BLOCK_SIZE as usize * SECTOR_SIZE as usize];
 
         for i in 0..SECTOR_USIZE {
-            let block = &mut sector[i*BLOCK_USIZE..i*(BLOCK_USIZE+1)];
+            let block = &mut sector[i*BLOCK_USIZE..(i+1)*BLOCK_USIZE];
 
             block.copy_from_slice(&self.read_block(i as u8)?);
         }
