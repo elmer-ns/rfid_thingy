@@ -1,6 +1,6 @@
 #![no_std]
 
-use core::{array, fmt::Debug};
+use core::fmt::Debug;
 
 use embassy_time::{Duration, Timer};
 use mfrc522::{AtqA, Initialized, Mfrc522, Uid, comm::Interface};
@@ -83,7 +83,7 @@ pub struct AuthenticatedSector<'r, E: Debug, COMM: Interface<Error = E>> {
 
 impl<'r, E: Debug, COMM: Interface<Error = E>> AuthenticatedSector<'r, E, COMM> {
     /// Read one of the blocks in the currently authenticated card sector
-    pub fn read_block(&mut self, block: u8) -> Result<Block, Error<E>> {
+    pub fn read_block(&mut self, block: u8) -> Result<[u8; BLOCK_SIZE as usize], Error<E>> {
         if block >= 4 {Err(Error::OutOfBounds)?}
         let block = self.sector * 4 + block;
 
@@ -93,18 +93,20 @@ impl<'r, E: Debug, COMM: Interface<Error = E>> AuthenticatedSector<'r, E, COMM> 
     }
 
     /// Read all blocks in the currently authenticated card sector
-    pub fn read_sector(&mut self) -> Result<[Block; SECTOR_SIZE as usize], Error<E>> {
-        let mut sector = [[0; BLOCK_SIZE as usize]; SECTOR_SIZE as usize];
+    pub fn read_sector(&mut self) -> Result<[u8; BLOCK_SIZE as usize * SECTOR_SIZE as usize], Error<E>> {
+        let mut sector = [0u8; BLOCK_SIZE as usize * SECTOR_SIZE as usize];
 
-        for i in 0..SECTOR_SIZE {
-            sector[i as usize] =  self.read_block(i)?;
+        for i in 0..SECTOR_USIZE {
+            let block = &mut sector[i*BLOCK_USIZE..i*(BLOCK_USIZE+1)];
+
+            block.copy_from_slice(&self.read_block(i as u8)?);
         }
 
         Ok(sector)
     }
 
     /// Write to one of the blocks in the currently authenticated sector. Does not allow a write to the last block in the sector
-    pub fn write_block(&mut self, block: u8, data: Block) -> Result<(), Error<E>> {
+    pub fn write_block(&mut self, block: u8, data: [u8; BLOCK_USIZE]) -> Result<(), Error<E>> {
         if block >= SECTOR_SIZE {Err(Error::OutOfBounds)?};
         if block == SECTOR_SIZE-1 {Err(Error::SectorTrailerLock)?};
 
@@ -116,9 +118,13 @@ impl<'r, E: Debug, COMM: Interface<Error = E>> AuthenticatedSector<'r, E, COMM> 
     }
 
     /// Write to all blocks except the last one in the currently authenticated card sector
-    pub fn write_sector(&mut self, block: u8, data: [Block; SECTOR_SIZE as usize-1]) -> Result<(), Error<E>> {
-        for i in 0..SECTOR_SIZE {
-            self.write_block(i, data[i as usize])?;
+    pub fn write_sector(&mut self, data: [u8; BLOCK_USIZE * (SECTOR_USIZE-1)]) -> Result<(), Error<E>> {
+        let (chunks, remainder) = data.as_chunks();
+
+        debug_assert!(remainder.is_empty());
+
+        for i in 0..SECTOR_USIZE {
+            self.write_block(i as u8, chunks[i])?;
         }
 
         Ok(())
@@ -131,10 +137,14 @@ impl<'r, E: Debug, COMM: Interface<Error = E>> Drop for AuthenticatedSector<'r, 
     }
 }
 
-type Block = [u8; BLOCK_SIZE as usize];
+//type Block = [u8; BLOCK_SIZE as usize];
 
 const BLOCK_SIZE: u8 = 16;
 const SECTOR_SIZE: u8 = 4;
+
+const BLOCK_USIZE: usize = BLOCK_SIZE as usize;
+const SECTOR_USIZE: usize = SECTOR_SIZE as usize;
+
 
 type SectorKey = [u8; 6];
 type TagKey = [SectorKey; 16];
