@@ -1,44 +1,26 @@
 #![no_std]
 
-use core::fmt::Debug;
+use core::{array, fmt::Debug};
 
 use embassy_time::{Duration, Timer};
 use mfrc522::{AtqA, Initialized, Mfrc522, Uid, comm::Interface};
 
 extern crate alloc;
 
+#[derive(Debug)]
+pub enum Error<E> {
+    ReaderError(mfrc522::Error<E>),
+    NotSelected,
+    OutOfBounds,
+
+    /// You are trying to access a sector trailer (last block in each sector) mutably. Do not do that. Please stop doing that. What are you doing? DO NOT DO THAT! Please.
+    SectorTrailerLock,
+}
+
 /// Wrapper around a Mfrc522 reader, with any supported interface
 pub struct Reader<E: Debug, COMM: Interface<Error = E>> {
     reader: Mfrc522<COMM, Initialized>,    
 }
-
-/// Represents the interaction with a Mifare Rfid Card, and is used to interact with a card that has been detected by the reader
-pub struct CardInteraction<'r, E: Debug, COMM: Interface<Error = E>> {
-    reader: &'r mut Mfrc522<COMM, Initialized>,
-
-    atqa: AtqA,
-    uid: Option<Uid>,
-    auth_section: Option<u8>,
-}
-
-impl<'r, E: Debug, COMM: Interface<Error = E>> CardInteraction<'r, E, COMM> {
-    /// Select/re-select this card.
-    fn select(&mut self) -> Result<(), mfrc522::Error<E>> {
-        if self.uid.is_some() {
-            self.reader.hlta()?;
-        }
-
-        let uid = self.reader.select(&self.atqa)?;
-        self.uid = Some(uid);
-
-        Ok(())
-    }
-
-    fn auth_sector(&mut self, section: u8, key: &SectorKey) -> 
-}
-
-type Sector = [Block; SECTOR_SIZE];
-type Block = [u8; BLOCK_SIZE];
 
 impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
     pub fn new(comm: COMM) -> Option<Self> {
@@ -48,21 +30,111 @@ impl<E: Debug, COMM: Interface<Error = E>> Reader<E, COMM> {
     }
 
     pub async fn wait_for_card<'r>(&'r mut self) -> Result<CardInteraction<'r, E, COMM>, mfrc522::Error<E>> {
+        // liten delay innan vi börjar kolla efter kort. annars går saker åt helvette
+        Timer::after(Duration::from_millis(50)).await;
+
         loop {
             match self.reader.new_card_present() {
-                Err(mfrc522::Error::Timeout) => Timer::after(Duration::from_millis(25)).await,
+                Err(mfrc522::Error::Timeout) => Timer::after(Duration::from_millis(50)).await,
                 result => {
-                    return Ok(CardInteraction { reader: &mut self.reader, atqa: result?, uid: None, auth_section: None });
+                    return Ok(CardInteraction { reader: &mut self.reader, atqa: result? });
                 }
             }
         }
     }
 }
 
-const BLOCK_SIZE: usize = 16;
-const SECTOR_SIZE: usize = 4;
+/// Represents the interaction with a Mifare Rfid Card, and is used to interact with a card that has been detected by the reader
+pub struct CardInteraction<'r, E: Debug, COMM: Interface<Error = E>> {
+    reader: &'r mut Mfrc522<COMM, Initialized>,
 
-type Tag = [Sector; 16];
+    atqa: AtqA,
+}
+
+impl<'r, E: Debug, COMM: Interface<Error = E>> CardInteraction<'r, E, COMM> {
+    /// Select this card
+    pub fn select(&'r mut self) -> Result<SelectedCard<'r, E, COMM>, Error<E>> {
+        let uid = self.reader.select(&self.atqa).map_err(|err| Error::ReaderError(err))?;
+
+        Ok(SelectedCard { reader: self.reader, uid })
+    }
+}
+
+/// Represents a card that has been selected by a [CardInteraction]
+pub struct SelectedCard<'r, E: Debug, COMM: Interface<Error = E>> {
+    reader: &'r mut Mfrc522<COMM, Initialized>,
+    uid: Uid,
+}
+
+impl<'r, E: Debug, COMM: Interface<Error = E>> SelectedCard<'r, E, COMM> {
+    pub fn auth_sector(&'r mut self, sector: u8, key: &SectorKey) -> Result<AuthenticatedSector<'r, E, COMM>, Error<E>> {
+        let block = sector * 4;
+        self.reader.mf_authenticate(&self.uid, block, key).map_err(|err| Error::ReaderError(err))?;
+
+        Ok(AuthenticatedSector { reader: self.reader, uid: &self.uid, sector })
+    }
+}
+
+pub struct AuthenticatedSector<'r, E: Debug, COMM: Interface<Error = E>> {
+    reader: &'r mut Mfrc522<COMM, Initialized>,
+    uid: &'r Uid,
+    sector: u8,
+}
+
+impl<'r, E: Debug, COMM: Interface<Error = E>> AuthenticatedSector<'r, E, COMM> {
+    /// Read one of the blocks in the currently authenticated card sector
+    pub fn read_block(&mut self, block: u8) -> Result<Block, Error<E>> {
+        if block >= 4 {Err(Error::OutOfBounds)?}
+        let block = self.sector * 4 + block;
+
+        let read = self.reader.mf_read(block).map_err(|err| Error::ReaderError(err))?;
+
+        Ok(read)
+    }
+
+    /// Read all blocks in the currently authenticated card sector
+    pub fn read_sector(&mut self) -> Result<[Block; SECTOR_SIZE as usize], Error<E>> {
+        let mut sector = [[0; BLOCK_SIZE as usize]; SECTOR_SIZE as usize];
+
+        for i in 0..SECTOR_SIZE {
+            sector[i as usize] =  self.read_block(i)?;
+        }
+
+        Ok(sector)
+    }
+
+    /// Write to one of the blocks in the currently authenticated sector. Does not allow a write to the last block in the sector
+    pub fn write_block(&mut self, block: u8, data: Block) -> Result<(), Error<E>> {
+        if block >= SECTOR_SIZE {Err(Error::OutOfBounds)?};
+        if block == SECTOR_SIZE-1 {Err(Error::SectorTrailerLock)?};
+
+        let block = self.sector * SECTOR_SIZE + block;
+
+        self.reader.mf_write(block, data).map_err(|err| Error::ReaderError(err))?;
+
+        Ok(())
+    }
+
+    /// Write to all blocks except the last one in the currently authenticated card sector
+    pub fn write_sector(&mut self, block: u8, data: [Block; SECTOR_SIZE as usize-1]) -> Result<(), Error<E>> {
+        for i in 0..SECTOR_SIZE {
+            self.write_block(i, data[i as usize])?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'r, E: Debug, COMM: Interface<Error = E>> Drop for AuthenticatedSector<'r, E, COMM> {
+    fn drop(&mut self) {
+        self.reader.stop_crypto1();
+    }
+}
+
+type Block = [u8; BLOCK_SIZE as usize];
+
+const BLOCK_SIZE: u8 = 16;
+const SECTOR_SIZE: u8 = 4;
 
 type SectorKey = [u8; 6];
 type TagKey = [SectorKey; 16];

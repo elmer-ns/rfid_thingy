@@ -7,6 +7,8 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+use core::ptr::read;
+
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -16,6 +18,7 @@ use esp_hal::delay::Delay;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::spi::master::{Config, Spi};
 use esp_hal::timer::timg::TimerGroup;
+use esp_println::println;
 use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
 use rfid_thingy::Reader;
@@ -59,9 +62,22 @@ async fn main(_spawner: Spawner) -> ! {
     loop {
         info!("waiting...");
 
-        reader.wait_for_card().await.unwrap();
-
+        let Ok(mut card) = reader.wait_for_card().await else {continue;};
+        let Ok(mut select) = card.select() else {continue;};
         info!("found card!");
+
+        let Ok(mut auth_sector) = select.auth_sector(0, &[0xFF; 6]) else {continue;};
+        info!("authenticated card");
+
+        let Ok(sector) = auth_sector.read_sector() else{ continue;};
+
+        println!("read: {:?}", sector);
+
+        let Ok(_) = auth_sector.write_block(1, [6,7,6,7,6,7,6,7,6,7,6,7,6,7,6,7]) else {continue;};
+
+        let Ok(sector) = auth_sector.read_sector() else{ continue;};
+
+        println!("read: {:?}", sector);
 
         Timer::after(Duration::from_secs(1)).await;
     }
