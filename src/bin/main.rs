@@ -17,13 +17,14 @@ use esp_hal::clock::CpuClock;
 use esp_hal::delay::Delay;
 use esp_hal::gpio::interconnect::{PeripheralInput, PeripheralOutput};
 use esp_hal::gpio::{Level, Output, OutputConfig, OutputPin};
-use esp_hal::peripherals::Peripherals;
 use esp_hal::spi::master::{Config, Instance, Spi};
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::println;
 use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
 use rfid_thingy::rfid::Reader;
+
+use esp_backtrace as _;
 
 extern crate alloc;
 
