@@ -12,19 +12,15 @@ use core::convert::Infallible;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::{DeviceError, ExclusiveDevice};
-use esp_hal::Blocking;
-use esp_hal::clock::CpuClock;
-use esp_hal::delay::Delay;
-use esp_hal::gpio::interconnect::{PeripheralInput, PeripheralOutput};
-use esp_hal::gpio::{Level, Output, OutputConfig, OutputPin};
-use esp_hal::spi::master::{Config, Instance, Spi};
-use esp_hal::timer::timg::TimerGroup;
+use esp_hal::{Blocking, clock::CpuClock, delay::Delay, gpio::{Level, Output, OutputConfig, OutputPin, interconnect::{PeripheralInput, PeripheralOutput}}, spi::master::{Config, Instance, Spi}, timer::timg::TimerGroup};
 use esp_println::println;
 use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
-use rfid_thingy::rfid::Reader;
 
 use esp_backtrace as _;
+
+use rfid_thingy as lib;
+use lib::rfid::Reader;
 
 extern crate alloc;
 
