@@ -7,21 +7,23 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-use core::ptr::read;
+use core::convert::Infallible;
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use embedded_hal_bus::spi::ExclusiveDevice;
-use esp_backtrace as _;
+use embedded_hal_bus::spi::{DeviceError, ExclusiveDevice};
+use esp_hal::Blocking;
 use esp_hal::clock::CpuClock;
 use esp_hal::delay::Delay;
-use esp_hal::gpio::{Level, Output, OutputConfig};
-use esp_hal::spi::master::{Config, Spi};
+use esp_hal::gpio::interconnect::{PeripheralInput, PeripheralOutput};
+use esp_hal::gpio::{Level, Output, OutputConfig, OutputPin};
+use esp_hal::peripherals::Peripherals;
+use esp_hal::spi::master::{Config, Instance, Spi};
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::println;
 use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
-use rfid_thingy::Reader;
+use rfid_thingy::rfid::Reader;
 
 extern crate alloc;
 
@@ -50,14 +52,10 @@ async fn main(_spawner: Spawner) -> ! {
     //    esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default())
     //        .expect("Failed to initialize Wi-Fi controller");
 
-    let spi: Spi<'_, esp_hal::Blocking> = Spi::new(peripherals.SPI2, Config::default()).unwrap().with_sck(peripherals.GPIO9).with_mosi(peripherals.GPIO11).with_miso(peripherals.GPIO12);
     
-    let cs_pin = Output::new(peripherals.GPIO10, Level::Low, OutputConfig::default());
 
-    let device = ExclusiveDevice::new(spi, cs_pin, Delay::new()).unwrap();
-    let itf = SpiInterface::new(device);
-
-    let mut reader = Reader::new(itf).unwrap();
+    
+    let mut reader = init_reader(peripherals.SPI2, peripherals.GPIO9, peripherals.GPIO11, peripherals.GPIO12, peripherals.GPIO10).unwrap();
 
     loop {
         info!("waiting...");
@@ -81,4 +79,15 @@ async fn main(_spawner: Spawner) -> ! {
 
         Timer::after(Duration::from_secs(1)).await;
     }
+}
+
+fn init_reader<'d>(spi: impl Instance + 'd, sck: impl PeripheralOutput<'d>, mosi: impl PeripheralOutput<'d>, miso: impl PeripheralInput<'d>, cs: impl OutputPin + 'd) -> Option<Reader<DeviceError<esp_hal::spi::Error, Infallible>, SpiInterface<ExclusiveDevice<Spi<'d, Blocking>, Output<'d>, Delay>, mfrc522::comm::blocking::spi::DummyDelay>>> {
+    let spi: Spi<'_, esp_hal::Blocking> = Spi::new(spi, Config::default()).unwrap().with_sck(sck).with_mosi(mosi).with_miso(miso);
+    
+    let cs_pin = Output::new(cs, Level::Low, OutputConfig::default());
+
+    let device = ExclusiveDevice::new(spi, cs_pin, Delay::new()).unwrap();
+    let itf = SpiInterface::new(device);
+
+    Reader::new(itf)
 }
