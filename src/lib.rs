@@ -2,6 +2,8 @@
 #![feature(impl_trait_in_assoc_type)]
 
 pub mod rfid;
+pub mod wifi;
+pub mod web;
 
 #[macro_export]
 macro_rules! mk_static {

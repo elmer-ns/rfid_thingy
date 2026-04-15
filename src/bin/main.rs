@@ -14,6 +14,7 @@ use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::{DeviceError, ExclusiveDevice};
 use esp_hal::{Blocking, clock::CpuClock, delay::Delay, gpio::{Level, Output, OutputConfig, OutputPin, interconnect::{PeripheralInput, PeripheralOutput}}, spi::master::{Config, Instance, Spi}, timer::timg::TimerGroup};
 use esp_println::println;
+use esp_radio::wifi::AuthMethod;
 use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
 
@@ -26,12 +27,15 @@ extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
+const SSID: &str = "test";
+const PASSWORD: &str = "test";
+
 #[allow(
     clippy::large_stack_frames,
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
 #[esp_rtos::main]
-async fn main(_spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) -> ! {
     esp_println::logger::init_logger_from_env();
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -44,12 +48,15 @@ async fn main(_spawner: Spawner) -> ! {
 
     info!("Embassy initialized!");
 
-    //let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi/BLE controller");
-    //let (mut _wifi_controller, _interfaces) =
-    //    esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default())
-    //        .expect("Failed to initialize Wi-Fi controller");
+    let radio_init = &*lib::mk_static!(
+        esp_radio::Controller<'static>,
+        esp_radio::init().expect("Failed to initialize Wi-Fi/BLE controller")
+    );
+    let rng = esp_hal::rng::Rng::new();
 
-    
+    let client_config = esp_radio::wifi::ClientConfig::default().with_ssid("a".into()).with_password("12345678".into());
+
+    let net_stack = lib::wifi::start_wifi(&radio_init, peripherals.WIFI, rng, &spawner, client_config).await;
 
     
     let mut reader = init_reader(peripherals.SPI2, peripherals.GPIO9, peripherals.GPIO11, peripherals.GPIO12, peripherals.GPIO10).unwrap();
