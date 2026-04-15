@@ -73,7 +73,7 @@ async fn main(_spawner: Spawner) -> ! {
 
         println!("read: {:?}", sector);
 
-        let Ok(_) = auth_sector.write_block(1, [6,7,6,7,6,7,6,7,6,7,6,7,6,7,6,7]) else {continue;};
+        let Ok(_) = auth_sector.write_block(1, [6,7,6,5,6,7,6,7,6,7,6,7,6,7,6,7]) else {continue;};
 
         let Ok(sector) = auth_sector.read_sector() else{ continue;};
 
