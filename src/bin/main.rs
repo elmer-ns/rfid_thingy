@@ -27,9 +27,6 @@ extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-const SSID: &str = "test";
-const PASSWORD: &str = "test";
-
 #[allow(
     clippy::large_stack_frames,
     reason = "it's not unusual to allocate larger buffers etc. in main"
@@ -54,7 +51,7 @@ async fn main(spawner: Spawner) -> ! {
     );
     let rng = esp_hal::rng::Rng::new();
 
-    let client_config = esp_radio::wifi::ClientConfig::default().with_ssid("a".into()).with_password("12345678".into());
+    let client_config = esp_radio::wifi::ClientConfig::default().with_ssid("NTIG Guest".into()).with_password("TeknikPassion".into());
 
     let net_stack = lib::wifi::start_wifi(&radio_init, peripherals.WIFI, rng, &spawner, client_config).await;
 
