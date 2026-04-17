@@ -67,7 +67,7 @@ async fn connection(mut controller: WifiController<'static>, client_config: Clie
             log::info!("Wifi started!");
 
             log::info!("Scan");
-            let scan_config = ScanConfig::default().with_max(100);
+            let scan_config = ScanConfig::default().with_max(10);
             let result = controller
                 .scan_with_config_async(scan_config)
                 .await
