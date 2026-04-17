@@ -60,7 +60,16 @@ async fn main(spawner: Spawner) -> ! {
 
     let net_stack = lib::wifi::start_wifi(&radio_init, peripherals.WIFI, rng, &spawner, client_config).await;
 
-    
+    let web_app = lib::web::WebApp::default();
+    for id in 0..lib::web::WEB_TASK_POOL_SIZE {
+        spawner.must_spawn(lib::web::web_task(
+            id,
+            net_stack,
+            web_app.router,
+            web_app.config,
+        ));
+    }
+
     let mut reader = init_reader(peripherals.SPI2, peripherals.GPIO9, peripherals.GPIO11, peripherals.GPIO12, peripherals.GPIO10).unwrap();
 
     loop {
