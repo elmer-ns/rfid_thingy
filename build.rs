@@ -1,4 +1,9 @@
 fn main() {
+    println!("cargo:rerun-if-changed={}", dotenv::dotenv().expect("Failed to find .env file").display());
+    for (key, value) in dotenv::vars() {
+        println!("cargo:rustc-env={}={}", key, value);
+    }
+
     linker_be_nice();
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");

@@ -69,6 +69,9 @@ mfrc522 = "0.8.0"
 embedded-hal-bus = "0.3.0"
 picoserve = { version = "0.17.1", features = ["alloc", "embassy"] }
 
+[build-dependencies]
+dotenv = "0.15.0"
+
 
 [profile.dev]
 # Rust debug is too slow.
