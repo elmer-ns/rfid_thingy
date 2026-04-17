@@ -7,6 +7,9 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+const SSID: &str = env!("SSID");
+const PASSWORD: &str = env!("PASSWORD");
+
 use core::convert::Infallible;
 
 use embassy_executor::Spawner;
@@ -14,7 +17,6 @@ use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::{DeviceError, ExclusiveDevice};
 use esp_hal::{Blocking, clock::CpuClock, delay::Delay, gpio::{Level, Output, OutputConfig, OutputPin, interconnect::{PeripheralInput, PeripheralOutput}}, spi::master::{Config, Instance, Spi}, timer::timg::TimerGroup};
 use esp_println::println;
-use esp_radio::wifi::AuthMethod;
 use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
 
@@ -35,6 +37,9 @@ esp_bootloader_esp_idf::esp_app_desc!();
 async fn main(spawner: Spawner) -> ! {
     esp_println::logger::init_logger_from_env();
 
+    println!("{}", SSID);
+    println!("{}", PASSWORD);
+
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
@@ -51,7 +56,7 @@ async fn main(spawner: Spawner) -> ! {
     );
     let rng = esp_hal::rng::Rng::new();
 
-    let client_config = esp_radio::wifi::ClientConfig::default().with_ssid("NTIG Guest".into()).with_password("TeknikPassion".into());
+    let client_config = esp_radio::wifi::ClientConfig::default().with_ssid(SSID.into()).with_password(PASSWORD.into());
 
     let net_stack = lib::wifi::start_wifi(&radio_init, peripherals.WIFI, rng, &spawner, client_config).await;
 
