@@ -17,6 +17,7 @@ use embassy_time::{Duration, Timer};
 use embedded_hal_bus::spi::{DeviceError, ExclusiveDevice};
 use esp_hal::{Blocking, clock::CpuClock, delay::Delay, gpio::{Level, Output, OutputConfig, OutputPin, interconnect::{PeripheralInput, PeripheralOutput}}, spi::master::{Config, Instance, Spi}, timer::timg::TimerGroup};
 use esp_println::println;
+use esp_radio::wifi::AuthMethod;
 use log::info;
 use mfrc522::comm::blocking::spi::SpiInterface;
 
@@ -56,6 +57,7 @@ async fn main(spawner: Spawner) -> ! {
     );
     let rng = esp_hal::rng::Rng::new();
 
+    //let client_config = esp_radio::wifi::ClientConfig::default().with_ssid(SSID.into()).with_password(PASSWORD.into());
     let client_config = esp_radio::wifi::ClientConfig::default().with_ssid(SSID.into()).with_password(PASSWORD.into());
 
     let net_stack = lib::wifi::start_wifi(&radio_init, peripherals.WIFI, rng, &spawner, client_config).await;
@@ -70,43 +72,7 @@ async fn main(spawner: Spawner) -> ! {
         ));
     }
 
-    // GPIO 09 - SCK
-    // GPIO 11 - MOSI
-    // GPIO 12 - MISO
-    // GPIO 10 - CS
-    let mut reader = init_reader(peripherals.SPI2, peripherals.GPIO9, peripherals.GPIO11, peripherals.GPIO12, peripherals.GPIO10).unwrap();
-
     loop {
-        info!("waiting...");
-
-        let Ok(mut card) = reader.wait_for_card().await else {continue;};
-        let Ok(mut select) = card.select() else {continue;};
-        info!("found card!");
-
-        let Ok(mut auth_sector) = select.auth_sector(0, &[0xFF; 6]) else {continue;};
-        info!("authenticated card");
-
-        let Ok(sector) = auth_sector.read_sector() else{ continue;};
-
-        println!("read: {:?}", sector);
-
-        let Ok(_) = auth_sector.write_block(1, [6,7,6,5,6,7,6,7,6,7,6,7,6,7,6,7]) else {continue;};
-
-        let Ok(sector) = auth_sector.read_sector() else{ continue;};
-
-        println!("read: {:?}", sector);
-
-        Timer::after(Duration::from_secs(1)).await;
+        Timer::after_secs(1).await
     }
-}
-
-fn init_reader<'d>(spi: impl Instance + 'd, sck: impl PeripheralOutput<'d>, mosi: impl PeripheralOutput<'d>, miso: impl PeripheralInput<'d>, cs: impl OutputPin + 'd) -> Option<Reader<DeviceError<esp_hal::spi::Error, Infallible>, SpiInterface<ExclusiveDevice<Spi<'d, Blocking>, Output<'d>, Delay>, mfrc522::comm::blocking::spi::DummyDelay>>> {
-    let spi: Spi<'_, esp_hal::Blocking> = Spi::new(spi, Config::default()).unwrap().with_sck(sck).with_mosi(mosi).with_miso(miso);
-    
-    let cs_pin = Output::new(cs, Level::Low, OutputConfig::default());
-
-    let device = ExclusiveDevice::new(spi, cs_pin, Delay::new()).unwrap();
-    let itf = SpiInterface::new(device);
-
-    Reader::new(itf)
 }

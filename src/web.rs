@@ -1,5 +1,6 @@
 use embassy_net::Stack;
 use embassy_time::Duration;
+use esp_println::println;
 use picoserve::{AppBuilder, AppRouter, Router, response::File, routing};
 
 pub const WEB_TASK_POOL_SIZE: usize = 2;
@@ -10,6 +11,7 @@ impl AppBuilder for Application {
     type PathRouter = impl routing::PathRouter;
 
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
+        println!("build");
         picoserve::Router::new().route("/", routing::get_service(File::html(include_str!("html/index.html"))))
     }
 }
@@ -47,6 +49,9 @@ pub async fn web_task(
     let mut tcp_rx_buffer = [0; 1024];
     let mut tcp_tx_buffer = [0; 1024];
     let mut http_buffer = [0; 2048];
+
+    println!("trace?");
+    log::trace!("server task");
 
     picoserve::Server::new(router, config, &mut http_buffer)
         .listen_and_serve(task_id, stack, port, &mut tcp_rx_buffer, &mut tcp_tx_buffer)

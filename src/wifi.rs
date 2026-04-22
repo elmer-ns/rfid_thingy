@@ -15,7 +15,7 @@ pub async fn start_wifi(radio_init: &'static esp_radio::Controller<'static>, wif
     let dhcp_config = DhcpConfig::default();
     let net_config = embassy_net::Config::dhcpv4(dhcp_config);
 
-    let (stack, runner) = embassy_net::new(wifi_interface, net_config, mk_static!(StackResources<3>, StackResources::<3>::new()), net_seed);
+    let (stack, runner) = embassy_net::new(wifi_interface, net_config, mk_static!(StackResources<8>, StackResources::<8>::new()), net_seed);
 
     spawner.spawn(connection(wifi_controller, client_config)).ok();
     spawner.spawn(net_task(runner)).ok();
