@@ -1145,6 +1145,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 
 [[package]]
+name = "nojson"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a90a4644cecb7a8b61107b516e815559a7b973ff90541a9481b7f15fd880bff"
+
+[[package]]
 name = "num-derive"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1314,6 +1320,7 @@ dependencies = [
  "esp-rtos",
  "log",
  "mfrc522",
+ "nojson",
  "picoserve",
  "serde",
  "smoltcp",

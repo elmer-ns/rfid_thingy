@@ -2,7 +2,7 @@ use alloc::string::String;
 use embassy_net::Stack;
 use embassy_time::Duration;
 use esp_println::println;
-use picoserve::{AppRouter, AppWithStateBuilder, Router, response::File, routing::{self, get}};
+use picoserve::{AppRouter, AppWithStateBuilder, Router, response::File, routing::{self, get, get_service}};
 
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
@@ -26,7 +26,11 @@ impl AppWithStateBuilder for Application {
             .route("/js/main.js", routing::get_service(File::css(include_str!("website/js/main.js"))))
             .route("/print", get(async |picoserve::extract::Query(PrintParams { text} )| {
                 println!("{}", text);
+                
                 picoserve::response::DebugValue(("text", text))
+            }))
+            .route("/uids", get(async || {
+                json::array!["a", "bc"]
             }))
     }
 }
