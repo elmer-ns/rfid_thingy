@@ -1315,6 +1315,7 @@ dependencies = [
  "log",
  "mfrc522",
  "picoserve",
+ "serde",
  "smoltcp",
  "static_cell",
 ]

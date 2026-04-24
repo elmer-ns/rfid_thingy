@@ -5,6 +5,8 @@ pub mod rfid;
 pub mod wifi;
 pub mod web;
 
+extern crate alloc;
+
 #[macro_export]
 macro_rules! mk_static {
     ($t:ty,$val:expr) => {{

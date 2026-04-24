@@ -1,23 +1,38 @@
+use alloc::string::String;
 use embassy_net::Stack;
 use embassy_time::Duration;
 use esp_println::println;
-use picoserve::{AppBuilder, AppRouter, Router, response::File, routing};
+use picoserve::{AppRouter, AppWithStateBuilder, Router, response::File, routing::{self, get}};
 
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
+#[derive(serde::Deserialize)]
+struct PrintParams {
+    text: String
+}
+
 pub struct Application;
 
-impl AppBuilder for Application {
+impl AppWithStateBuilder for Application {
+    type State = ();
+
     type PathRouter = impl routing::PathRouter;
 
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
         println!("build");
-        picoserve::Router::new().route("/", routing::get_service(File::html(include_str!("html/index.html"))))
+        picoserve::Router::new()
+            .route("/", routing::get_service(File::html(include_str!("website/index.html"))))
+            .route("/css/style.css", routing::get_service(File::css(include_str!("website/css/style.css"))))
+            .route("/js/main.js", routing::get_service(File::css(include_str!("website/js/main.js"))))
+            .route("/print", get(async |picoserve::extract::Query(PrintParams { text} )| {
+                println!("{}", text);
+                picoserve::response::DebugValue(("text", text))
+            }))
     }
 }
 
 pub struct WebApp {
-    pub router: &'static Router<<Application as AppBuilder>::PathRouter>,
+    pub router: &'static Router<<Application as AppWithStateBuilder>::PathRouter>,
     pub config: &'static picoserve::Config<Duration>,
 }
 

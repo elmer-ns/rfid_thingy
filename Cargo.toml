@@ -68,6 +68,7 @@ static_cell      = "2.1.1"
 mfrc522 = "0.8.0"
 embedded-hal-bus = "0.3.0"
 picoserve = { version = "0.17.1", features = ["alloc", "embassy"] }
+serde = { version = "1.0.228", default-features = false, features = ["alloc"] }
 
 [build-dependencies]
 dotenv = "0.15.0"
