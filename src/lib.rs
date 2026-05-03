@@ -1,7 +1,12 @@
 #![no_std]
 #![feature(impl_trait_in_assoc_type)]
+#![feature(never_type)]
 
+use alloc::vec::Vec;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
+use mfrc522::Uid;
+use nojson::JsonObjectFormatter;
+use serde::Serialize;
 
 pub mod rfid;
 pub mod web;
@@ -24,13 +29,22 @@ static STATE: Mutex<CriticalSectionRawMutex, State> = Mutex::new(State {
     reader_operation: todo!(),
 });
 
+#[derive(Serialize, Clone)]
 pub struct State {
     pub reader_active: bool,
     pub reader_operation: ReaderOperation,
 }
 
+#[derive(Clone, Serialize)]
 pub enum ReaderOperation {
     None,
-    Read { _never: ! },
-    Write { _never: ! },
+    Read {},
+    Write {},
+}
+
+#[derive(Clone, Serialize)]
+pub enum ReaderInteraction {
+    Find,
+    Read,
+    Write,
 }

@@ -1,20 +1,22 @@
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use embassy_net::Stack;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::Duration;
 use esp_println::println;
 use picoserve::{
     AppRouter, AppWithStateBuilder, Router,
-    response::File,
-    routing::{self, PathRouter, get, get_service},
+    extract::{FromRef, State},
+    response::{File, IntoResponse, IntoResponseWithState, Response},
+    routing::{self, PathRouter, get, get_service, post},
 };
 
-use crate::{STATE, State};
+use crate::STATE;
 
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
+#[derive(Clone)]
 pub struct WebState {
-    pub state: &'static Mutex<CriticalSectionRawMutex, State>,
+    pub state: &'static Mutex<CriticalSectionRawMutex, crate::State>,
 }
 
 #[derive(serde::Deserialize)]
@@ -32,14 +34,19 @@ pub struct WebApp {
 
 struct Application {}
 
+#[derive(Clone)]
+struct AppState {}
+
 impl AppWithStateBuilder for Application {
     type State = WebState;
 
     type PathRouter = impl PathRouter<Self::State>;
 
     fn build_app(self) -> Router<Self::PathRouter, Self::State> {
-        Router::new()
-            .with_state(WebState { state: &STATE })
+        let router = Router::new().with_state(AppState {});
+
+        // Website
+        let router = router
             .route(
                 "/",
                 routing::get_service(File::html(include_str!("website/index.html"))),
@@ -51,8 +58,32 @@ impl AppWithStateBuilder for Application {
             .route(
                 "/js/main.js",
                 routing::get_service(File::css(include_str!("website/js/main.js"))),
-            )
+            );
+
+        // API
+        let router = router
+            .route("/api/reader", get(get_state))
+            .route("/api/reader/activate", post(activate_reader))
+            .route("/api/reader/deactivate", post(deactivate_reader));
+
+        router
     }
+}
+
+async fn get_state(State(WebState { state }): State<WebState>) -> impl IntoResponse {
+    state.lock(|state| picoserve::response::Json(state.clone()))
+}
+
+async fn activate_reader(
+    picoserve::extract::State(WebState { state }): picoserve::extract::State<WebState>,
+) -> impl IntoResponse {
+    unsafe { state.lock_mut(|state| state.reader_active = true) };
+}
+
+async fn deactivate_reader(
+    picoserve::extract::State(WebState { state }): picoserve::extract::State<WebState>,
+) -> impl IntoResponse {
+    unsafe { state.lock_mut(|state| state.reader_active = false) };
 }
 
 impl Default for WebApp {
