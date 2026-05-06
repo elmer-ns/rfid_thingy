@@ -38,6 +38,7 @@ use rfid_thingy::{self as lib, CardData, ReaderInteraction, State, rfid::SECTOR_
 use esp_hal::time::Rate;
 use esp_hal::rmt::Rmt;
 use esp_hal_smartled::smart_led_buffer;
+use smart_leds_trait::SmartLedsWrite;
 
 extern crate alloc;
 
@@ -108,7 +109,7 @@ async fn main(spawner: Spawner) -> ! {
         esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO38, &mut led_buffer)
     };
 
-    onboard_led;
+    onboard_led.write(brightness([RED].into_iter(), 10)).unwrap();
 
     loop {
         let state = &rfid_thingy::STATE;

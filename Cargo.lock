@@ -1348,6 +1348,8 @@ dependencies = [
  "picoserve",
  "serde",
  "serde-big-array",
+ "smart-leds",
+ "smart-leds-trait",
  "smoltcp",
  "static_cell",
 ]
@@ -1512,6 +1514,15 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "smart-leds"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66df34e571fa9993fa6f99131a374d58ca3d694b75f9baac93458fe0d6057bf0"
+dependencies = [
+ "smart-leds-trait",
 ]
 
 [[package]]
