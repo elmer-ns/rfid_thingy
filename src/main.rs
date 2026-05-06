@@ -100,10 +100,12 @@ async fn main(spawner: Spawner) -> ! {
     )
     .unwrap();
 
+    let led_buffer = smart_led_buffer!(1);
+
     let mut onboard_led = {
         let frequency = Rate::from_mhz(80);
         let rmt = Rmt::new(peripherals.RMT, frequency).expect("Failed to initialize RMT0");
-        esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO38, &mut smart_led_buffer!(1))
+        esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO38, &mut led_buffer)
     };
 
     onboard_led;
