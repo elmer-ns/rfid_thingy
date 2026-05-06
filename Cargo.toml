@@ -4,10 +4,6 @@ name         = "rfid-thingy"
 rust-version = "1.88"
 version      = "0.1.0"
 
-[[bin]]
-name = "rfid-thingy"
-path = "./src/bin/main.rs"
-
 [dependencies]
 esp-hal = { version = "~1.0", features = ["esp32s3", "log-04", "unstable"] }
 
@@ -71,6 +67,7 @@ picoserve = { version = "0.17.1", features = ["alloc", "embassy", "json"] }
 serde = { version = "1.0.228", default-features = false, features = ["alloc"] }
 embassy-sync = { version = "0.8.0", features = ["log"] }
 serde-big-array = "0.5.1"
+esp-hal-smartled = { version = "0.17.0", features = ["esp32s3"] }
 
 [build-dependencies]
 dotenv = "0.15.0"

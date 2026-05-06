@@ -35,6 +35,9 @@ use esp_backtrace as _;
 
 use lib::rfid::Reader;
 use rfid_thingy::{self as lib, CardData, ReaderInteraction, State, rfid::SECTOR_SIZE};
+use esp_hal::time::Rate;
+use esp_hal::rmt::Rmt;
+use esp_hal_smartled::smart_led_buffer;
 
 extern crate alloc;
 
@@ -96,6 +99,14 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.GPIO10,
     )
     .unwrap();
+
+    let mut onboard_led = {
+        let frequency = Rate::from_mhz(80);
+        let rmt = Rmt::new(peripherals.RMT, frequency).expect("Failed to initialize RMT0");
+        esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO38, &mut smart_led_buffer!(1))
+    };
+
+    onboard_led;
 
     loop {
         let state = &rfid_thingy::STATE;
