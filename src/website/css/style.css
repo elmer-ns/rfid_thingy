@@ -1,1 +1,11 @@
-b
+textarea {
+    width: 16ch;
+    word-wrap: break-word;
+    resize: none;
+    font-size: 1rem;
+    overflow: auto;
+}
+
+.card textarea {
+    width: 64ch;
+}

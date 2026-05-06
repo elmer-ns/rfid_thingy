@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/style.css">
     <title>Esp32</title>
 </head>
 <body>
@@ -14,16 +15,16 @@
     <div>
         <button>None</button>
     </div>
-    <div>
-        <input type="text" class="hex_code" name="hex_code" maxlength="1024">
+    <div class="card">
+        <textarea cols="64" class="hex_code" name="hex_code" maxlength="1024"></textarea>
         <button>WriteCard</button>
     </div>
-    <div>
-        <input type="text" class="hex_code" name="hex_code" maxlength="64">
+    <div class="sector">
+        <textarea cols="16" class="hex_code" name="hex_code" maxlength="64"></textarea>
         <button>WriteSector</button>
     </div>
-    <div>
-        <input type="text" class="hex_code" name="hex_code" maxlength="16">
+    <div class="block">
+        <textarea cols="16" class="hex_code" name="hex_code" maxlength="16"></textarea>
         <button>WriteBlock</button>
     </div>
 
