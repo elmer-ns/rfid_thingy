@@ -100,7 +100,7 @@ async fn main(spawner: Spawner) -> ! {
     )
     .unwrap();
 
-    let led_buffer = smart_led_buffer!(1);
+    let mut led_buffer = smart_led_buffer!(1);
 
     let mut onboard_led = {
         let frequency = Rate::from_mhz(80);
