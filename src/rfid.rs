@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 
 use embassy_time::{Duration, Timer};
-use mfrc522::{AtqA, Initialized, Mfrc522, Uid, comm::Interface};
+use mfrc522::{AtqA, Initialized, Mfrc522, MifareKey, Uid, comm::Interface};
 
 extern crate alloc;
 
@@ -137,12 +137,12 @@ impl<'r, E: Debug, COMM: Interface<Error = E>> Drop for AuthenticatedSector<'r, 
 
 //type Block = [u8; BLOCK_SIZE as usize];
 
-const BLOCK_SIZE: u8 = 16;
-const SECTOR_SIZE: u8 = 4;
+pub const BLOCK_SIZE: u8 = 16;
+pub const SECTOR_SIZE: u8 = 4;
+pub const CARD_SIZE: u8 = 16;
 
-const BLOCK_USIZE: usize = BLOCK_SIZE as usize;
-const SECTOR_USIZE: usize = SECTOR_SIZE as usize;
+pub const BLOCK_USIZE: usize = BLOCK_SIZE as usize;
+pub const SECTOR_USIZE: usize = SECTOR_SIZE as usize;
+pub const CARD_USIZE: usize = CARD_SIZE as usize;
 
-
-type SectorKey = [u8; 6];
-type TagKey = [SectorKey; 16];
+type CardKeys = [MifareKey; CARD_USIZE];
