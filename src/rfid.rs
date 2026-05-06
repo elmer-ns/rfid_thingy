@@ -65,7 +65,7 @@ pub struct SelectedCard<'r, E: Debug, COMM: Interface<Error = E>> {
 }
 
 impl<'r, E: Debug, COMM: Interface<Error = E>> SelectedCard<'r, E, COMM> {
-    pub fn auth_sector(&'r mut self, sector: u8, key: &SectorKey) -> Result<AuthenticatedSector<'r, E, COMM>, Error<E>> {
+    pub fn auth_sector(&'r mut self, sector: u8, key: &MifareKey) -> Result<AuthenticatedSector<'r, E, COMM>, Error<E>> {
         let block = sector * 4;
         self.reader.mf_authenticate(&self.uid, block, key).map_err(|err| Error::ReaderError(err))?;
 
@@ -75,7 +75,7 @@ impl<'r, E: Debug, COMM: Interface<Error = E>> SelectedCard<'r, E, COMM> {
 
 pub struct AuthenticatedSector<'r, E: Debug, COMM: Interface<Error = E>> {
     reader: &'r mut Mfrc522<COMM, Initialized>,
-    uid: &'r Uid,
+    _uid: &'r Uid,
     sector: u8,
 }
 
