@@ -34,7 +34,7 @@ use mfrc522::comm::blocking::spi::SpiInterface;
 use esp_backtrace as _;
 
 use lib::rfid::Reader;
-use rfid_thingy::{self as lib, State};
+use rfid_thingy::{self as lib, CardData, ReaderInteraction, State, rfid::SECTOR_SIZE};
 
 extern crate alloc;
 
@@ -98,37 +98,73 @@ async fn main(spawner: Spawner) -> ! {
     .unwrap();
 
     loop {
-        info!("waiting...");
+        let state = &rfid_thingy::STATE;
 
-        let Ok(mut card) = reader.wait_for_card().await else {
+        let active = state.lock(|state| {
+            state.reader_active
+        });
+
+        if !active {
             continue;
-        };
-        let Ok(mut select) = card.select() else {
-            continue;
-        };
-        info!("found card!");
+        }
 
-        let Ok(mut auth_sector) = select.auth_sector(0, &[0xFF; 6]) else {
-            continue;
-        };
-        info!("authenticated card");
+        log::info!("Waiting for card...");
 
-        let Ok(sector) = auth_sector.read_sector() else {
-            continue;
-        };
-
-        println!("read: {:?}", sector);
-
-        //let Ok(_) = auth_sector.write_block(1, [6, 7, 6, 5, 6, 7, 6, 7, 6, 7, 6, 7, 6, 7, 6, 7])
-        //else {
-        //   continue;
-        //};
-
-        let Ok(sector) = auth_sector.read_sector() else {
-            continue;
+        let card = match reader.wait_for_card().await {
+            Ok(card) => card,
+            Err(err) => {
+                log::error!("{}", err);
+                continue;
+            },
         };
 
-        println!("read: {:?}", sector);
+        let selected = match card.select() {
+            Ok(selected) => selected,
+            Err(err) => {
+                log::error!("{}", err);
+                continue;
+            },
+        };
+
+        let op = state.lock(|state| {
+            state.reader_operation
+        });
+
+        let interaction = match op {
+            rfid_thingy::ReaderOperation::None => {
+                ReaderInteraction::Found { uid: selected.uid().into() }
+            },
+            rfid_thingy::ReaderOperation::Read { block, read_sector, key } => {
+                let auth = match selected.auth_sector(block / SECTOR_SIZE, &key) {
+                    Ok(auth) => auth,
+                    Err(err) => {
+                        log::error!("{}", err);
+                        continue;
+                    },
+                };
+                
+                let data = if read_sector {
+                    auth.read_sector().map(|sector| CardData::Sector(sector))
+                } else {
+                    let local_block = block % 4;
+                    auth.read_block(local_block).map(|block| CardData::Block(block))
+                };
+
+                let data = match data {
+                    Ok(data) => data,
+                    Err(err) => {
+                        log::error!("{}", err);
+                        continue;
+                    },
+                };
+
+                ReaderInteraction::Read { uid: selected.uid().into(), block, data }
+            },
+            rfid_thingy::ReaderOperation::Write { block, data, key } => {
+                todo!()
+            },
+        }
+
 
         Timer::after(Duration::from_secs(1)).await;
     }

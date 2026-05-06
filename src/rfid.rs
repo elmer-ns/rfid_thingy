@@ -69,7 +69,11 @@ impl<'r, E: Debug, COMM: Interface<Error = E>> SelectedCard<'r, E, COMM> {
         let block = sector * 4;
         self.reader.mf_authenticate(&self.uid, block, key).map_err(|err| Error::ReaderError(err))?;
 
-        Ok(AuthenticatedSector { reader: self.reader, uid: &self.uid, sector })
+        Ok(AuthenticatedSector { reader: self.reader, _uid: &self.uid, sector })
+    }
+
+    pub fn uid(&self) -> &Uid {
+        &self.uid
     }
 }
 

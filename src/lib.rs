@@ -26,7 +26,7 @@ macro_rules! mk_static {
     }};
 }
 
-static STATE: Mutex<CriticalSectionRawMutex, State> = Mutex::new(State {
+pub static STATE: Mutex<CriticalSectionRawMutex, State> = Mutex::new(State {
     reader_active: false,
     reader_operation: ReaderOperation::None,
 });
@@ -46,7 +46,7 @@ pub enum ReaderOperation {
         key: MifareKey,
     },
     Write {
-        pos: u8,
+        block: u8,
         data: CardData,
         key: MifareKey,
     },
@@ -75,11 +75,17 @@ impl From<mfrc522::Uid> for Uid {
     }
 }
 
+impl From<&mfrc522::Uid> for Uid {
+    fn from(value: &mfrc522::Uid) -> Self {
+        Uid(value.as_bytes().to_vec())
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct Uid(Vec<u8>);
 
 #[derive(Debug, Copy, Clone, Serialize)]
-enum CardData {
+pub enum CardData {
     #[serde(with = "BigArray")]
     Block([u8; BLOCK_USIZE]),
     #[serde(with = "BigArray")]
