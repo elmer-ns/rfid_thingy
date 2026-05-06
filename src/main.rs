@@ -173,6 +173,7 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
+/// Initialize the RFID reader. Simple helper function that takes required perhiperals and pins and produces a [Mfrc522] wrapped in a [Reader].
 fn init_reader<'d>(
     spi: impl Instance + 'd,
     sck: impl PeripheralOutput<'d>,

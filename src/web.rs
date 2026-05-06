@@ -1,27 +1,19 @@
-use alloc::string::{String, ToString};
 use embassy_net::Stack;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::Duration;
 use esp_println::println;
 use picoserve::{
     AppRouter, AppWithStateBuilder, Router,
-    extract::{FromRef, State},
-    response::{File, IntoResponse, IntoResponseWithState, Response},
-    routing::{self, PathRouter, get, get_service, post},
+    extract::State,
+    response::{File, IntoResponse},
+    routing::{self, PathRouter, get, post},
 };
-
-use crate::STATE;
 
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
 #[derive(Clone)]
 pub struct WebState {
     pub state: &'static Mutex<CriticalSectionRawMutex, crate::State>,
-}
-
-#[derive(serde::Deserialize)]
-struct PrintParams {
-    text: String,
 }
 
 pub struct WebApp {

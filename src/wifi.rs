@@ -1,3 +1,7 @@
+//! # Wifi Module
+//! Uses the esp32 wifi peripheral and esp_radio stuff to setup a network stack and manage all the wifi stuff.
+//! Mostly copied from: https://esp32.implrust.com/wifi/embassy/connecting-wifi.html
+
 use embassy_executor::Spawner;
 use embassy_net::{DhcpConfig, Runner, Stack, StackResources};
 use embassy_time::{Duration, Timer};
