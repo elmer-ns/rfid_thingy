@@ -113,7 +113,7 @@ async fn main(spawner: Spawner) -> ! {
         let card = match reader.wait_for_card().await {
             Ok(card) => card,
             Err(err) => {
-                log::error!("{}", err);
+                log::error!("Wait error: {}", err);
                 continue;
             },
         };
@@ -121,10 +121,12 @@ async fn main(spawner: Spawner) -> ! {
         let selected = match card.select() {
             Ok(selected) => selected,
             Err(err) => {
-                log::error!("{}", err);
+                log::error!("Select error: {}", err);
                 continue;
             },
         };
+
+        log::info!("Found and selected card");
 
         let op = state.lock(|state| {
             state.reader_operation
@@ -138,7 +140,7 @@ async fn main(spawner: Spawner) -> ! {
                 let auth = match selected.auth_sector(block / SECTOR_SIZE, &key) {
                     Ok(auth) => auth,
                     Err(err) => {
-                        log::error!("{}", err);
+                        log::error!("Auth error: {}", err);
                         continue;
                     },
                 };
@@ -153,7 +155,7 @@ async fn main(spawner: Spawner) -> ! {
                 let data = match data {
                     Ok(data) => data,
                     Err(err) => {
-                        log::error!("{}", err);
+                        log::error!("Read error: {}", err);
                         continue;
                     },
                 };
@@ -163,8 +165,7 @@ async fn main(spawner: Spawner) -> ! {
             rfid_thingy::ReaderOperation::Write { block, data, key } => {
                 todo!()
             },
-        }
-
+        };
 
         Timer::after(Duration::from_secs(1)).await;
     }
