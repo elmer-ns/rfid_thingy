@@ -32,7 +32,7 @@ pub struct WebApp {
     pub config: &'static picoserve::Config<Duration>,
 }
 
-struct Application {}
+pub struct Application {}
 
 #[derive(Clone)]
 struct AppState {}

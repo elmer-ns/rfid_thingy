@@ -82,7 +82,7 @@ impl From<&mfrc522::Uid> for Uid {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct Uid(Vec<u8>);
+pub struct Uid(Vec<u8>);
 
 #[derive(Debug, Copy, Clone, Serialize)]
 pub enum CardData {

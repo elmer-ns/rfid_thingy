@@ -110,37 +110,39 @@ async fn main(spawner: Spawner) -> ! {
 
         log::info!("Waiting for card...");
 
-        let card = match reader.wait_for_card().await {
+        let mut card = match reader.wait_for_card().await {
             Ok(card) => card,
             Err(err) => {
-                log::error!("Wait error: {}", err);
+                log::error!("Wait error: {:?}", err);
                 continue;
             },
         };
 
-        let selected = match card.select() {
+        let mut selected = match card.select() {
             Ok(selected) => selected,
             Err(err) => {
-                log::error!("Select error: {}", err);
+                log::error!("Select error: {:?}", err);
                 continue;
             },
         };
+
+        let dyn_uid: lib::Uid = selected.uid().into();
 
         log::info!("Found and selected card");
 
         let op = state.lock(|state| {
-            state.reader_operation
+            state.reader_operation.clone()
         });
 
         let interaction = match op {
             rfid_thingy::ReaderOperation::None => {
-                ReaderInteraction::Found { uid: selected.uid().into() }
+                ReaderInteraction::Found { uid: dyn_uid}
             },
             rfid_thingy::ReaderOperation::Read { block, read_sector, key } => {
-                let auth = match selected.auth_sector(block / SECTOR_SIZE, &key) {
+                let mut auth = match selected.auth_sector(block / SECTOR_SIZE, &key) {
                     Ok(auth) => auth,
                     Err(err) => {
-                        log::error!("Auth error: {}", err);
+                        log::error!("Auth error: {:?}", err);
                         continue;
                     },
                 };
@@ -155,12 +157,12 @@ async fn main(spawner: Spawner) -> ! {
                 let data = match data {
                     Ok(data) => data,
                     Err(err) => {
-                        log::error!("Read error: {}", err);
+                        log::error!("Read error: {:?}", err);
                         continue;
                     },
                 };
 
-                ReaderInteraction::Read { uid: selected.uid().into(), block, data }
+                ReaderInteraction::Read { uid: dyn_uid, block, data }
             },
             rfid_thingy::ReaderOperation::Write { block, data, key } => {
                 todo!()
