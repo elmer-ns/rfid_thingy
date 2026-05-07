@@ -1349,7 +1349,6 @@ dependencies = [
  "serde",
  "serde-big-array",
  "smart-leds",
- "smart-leds-trait",
  "smoltcp",
  "static_cell",
 ]
