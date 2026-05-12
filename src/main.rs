@@ -12,7 +12,7 @@ const PASSWORD: &str = env!("PASSWORD");
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
+use esp_hal::{clock::CpuClock, rmt::PulseCode, timer::timg::TimerGroup};
 use esp_println::println;
 use log::info;
 
@@ -85,20 +85,10 @@ async fn main(spawner: Spawner) -> ! {
     )
     .unwrap();
 
-    let mut led_buffer = smart_led_buffer!(1);
-
-    let mut onboard_led = {
-        let frequency = Rate::from_mhz(80);
-        let rmt = Rmt::new(peripherals.RMT, frequency).expect("Failed to initialize RMT0");
-        esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO38, &mut led_buffer)
-    };
-
-    onboard_led
-        .write(smart_leds::brightness(
-            [smart_leds::colors::RED].into_iter(),
-            10,
-        ))
-        .unwrap();
+    spawner.must_spawn(lib::light_task(
+        Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap(),
+        peripherals.GPIO38,
+    ));
 
     let mut last_active = false;
 
@@ -109,11 +99,11 @@ async fn main(spawner: Spawner) -> ! {
             let active = state.lock(|state| state.reader_active);
 
             if active && !last_active {
-                println!("Activated");
+                log::info!("Activated");
             }
 
             if !active && last_active {
-                println!("Deactivated");
+                log::info!("Deactivated");
             }
 
             last_active = active;

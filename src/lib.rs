@@ -4,9 +4,13 @@
 
 use alloc::vec::Vec;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
+use embassy_time::{Duration, Instant, Timer};
+use esp_hal::{Blocking, peripherals::GPIO38, rmt::Rmt, time::Rate};
+use esp_hal_smartled::{SmartLedsAdapter, smart_led_buffer};
 use mfrc522::MifareKey;
 use serde::Serialize;
 use serde_big_array::BigArray;
+use smart_leds::{SmartLedsWrite, brightness};
 
 use crate::rfid::{BLOCK_USIZE, CARD_USIZE, SECTOR_USIZE};
 
@@ -16,6 +20,62 @@ pub mod web;
 pub mod wifi;
 
 extern crate alloc;
+
+#[embassy_executor::task]
+pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> ! {
+    let mut led_buffer = smart_led_buffer!(1);
+
+    let mut onboard_led = {
+        let frequency = Rate::from_mhz(80);
+        //let rmt = Rmt::new(peripherals.RMT, frequency).expect("Failed to initialize RMT0");
+        esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, gpio, &mut led_buffer)
+    };
+
+    enum State {
+        Active,
+        Inactive,
+        Detected { at: embassy_time::Instant },
+    }
+
+    let mut state = State::Inactive;
+
+    loop {
+        let active = STATE.lock(|state| state.reader_active);
+
+        match &mut state {
+            State::Active => {
+                if !active {
+                    state = State::Inactive
+                }
+            }
+            State::Inactive => {
+                if active {
+                    state = State::Active
+                }
+            }
+            State::Detected { at } => {
+                const ACTIVE_FOR: Duration = Duration::from_millis(500);
+                if Instant::now().duration_since(*at) > ACTIVE_FOR {
+                    if active {
+                        state = State::Active
+                    } else {
+                        state = State::Inactive
+                    }
+                }
+            }
+        }
+
+        let colors = match &state {
+            State::Active => [smart_leds::colors::GREEN].into_iter(),
+            State::Inactive => [smart_leds::colors::RED].into_iter(),
+            State::Detected { at: _ } => [smart_leds::colors::BLUE].into_iter(),
+        };
+
+        onboard_led.write(brightness(colors, 10)).unwrap();
+
+        Timer::after(Duration::from_millis(500)).await;
+    }
+}
 
 #[macro_export]
 macro_rules! mk_static {
