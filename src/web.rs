@@ -9,6 +9,8 @@ use picoserve::{
     routing::{self, PathRouter, get, post},
 };
 
+use crate::STATE;
+
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
 #[derive(Clone)]
@@ -115,10 +117,12 @@ pub async fn web_task(
     println!("trace?");
     log::trace!("server task");
 
-    panic!()
-
-    //picoserve::Server::new(router, config, &mut http_buffer)
-    //    .listen_and_serve(task_id, stack, port, &mut tcp_rx_buffer, &mut tcp_tx_buffer)
-    //    .await
-    //   .into_never()
+    picoserve::Server::new(
+        &router.shared().with_state(WebState { state: &STATE }),
+        config,
+        &mut http_buffer,
+    )
+    .listen_and_serve(task_id, stack, port, &mut tcp_rx_buffer, &mut tcp_tx_buffer)
+    .await
+    .into_never()
 }

@@ -1,7 +1,12 @@
 //! Mostly automatically generated using esp-generate
 
 fn main() {
-    println!("cargo:rerun-if-changed={}", dotenv::dotenv().expect("Failed to find .env file").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        dotenv::dotenv()
+            .expect("Failed to find .env file")
+            .display()
+    );
     for (key, value) in dotenv::vars() {
         println!("cargo:rustc-env={}={}", key, value);
     }

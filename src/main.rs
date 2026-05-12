@@ -100,6 +100,28 @@ async fn main(spawner: Spawner) -> ! {
         ))
         .unwrap();
 
+    let mut last_active = false;
+
+    loop {
+        let state = &rfid_thingy::STATE;
+
+        {
+            let active = state.lock(|state| state.reader_active);
+
+            if active && !last_active {
+                println!("Activated");
+            }
+
+            if !active && last_active {
+                println!("Deactivated");
+            }
+
+            last_active = active;
+        }
+
+        Timer::after(Duration::from_secs(1)).await;
+    }
+    /*
     loop {
         let state = &rfid_thingy::STATE;
 
@@ -181,4 +203,5 @@ async fn main(spawner: Spawner) -> ! {
 
         Timer::after(Duration::from_secs(1)).await;
     }
+    */
 }
