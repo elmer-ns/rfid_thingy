@@ -10,22 +10,18 @@
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
 
-
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use esp_hal::{
-    clock::CpuClock,
-    timer::timg::TimerGroup,
-};
+use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use esp_println::println;
 use log::info;
 
 use esp_backtrace as _;
 
-use rfid_thingy::{self as lib, ReaderInteraction};
-use esp_hal::time::Rate;
 use esp_hal::rmt::Rmt;
+use esp_hal::time::Rate;
 use esp_hal_smartled::smart_led_buffer;
+use rfid_thingy::{self as lib, ReaderInteraction};
 use smart_leds::SmartLedsWrite;
 
 extern crate alloc;
@@ -97,14 +93,17 @@ async fn main(spawner: Spawner) -> ! {
         esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, peripherals.GPIO38, &mut led_buffer)
     };
 
-    onboard_led.write(smart_leds::brightness([smart_leds::colors::RED].into_iter(), 10)).unwrap();
+    onboard_led
+        .write(smart_leds::brightness(
+            [smart_leds::colors::RED].into_iter(),
+            10,
+        ))
+        .unwrap();
 
     loop {
         let state = &rfid_thingy::STATE;
 
-        let active = state.lock(|state| {
-            state.reader_active
-        });
+        let active = state.lock(|state| state.reader_active);
 
         if !active {
             continue;
@@ -117,7 +116,7 @@ async fn main(spawner: Spawner) -> ! {
             Err(err) => {
                 log::error!("Wait error: {:?}", err);
                 continue;
-            },
+            }
         };
 
         let mut selected = match card.select() {
@@ -125,59 +124,59 @@ async fn main(spawner: Spawner) -> ! {
             Err(err) => {
                 log::error!("Select error: {:?}", err);
                 continue;
-            },
+            }
         };
 
         let dyn_uid: lib::Uid = selected.uid().into();
 
         log::info!("Found and selected card");
 
-        let op = state.lock(|state| {
-            state.reader_operation.clone()
-        });
+        let op = state.lock(|state| state.reader_operation.clone());
 
         let interaction = match op {
-            rfid_thingy::ReaderOperation::None => {
-                ReaderInteraction::Found { uid: dyn_uid}
-            },
+            rfid_thingy::ReaderOperation::None => ReaderInteraction::Found { uid: dyn_uid },
             rfid_thingy::ReaderOperation::ReadBlock { block, key } => {
                 let data = match rfid_thingy::helpers::read_block(&mut selected, block, &key) {
                     Ok(data) => data,
                     Err(err) => {
                         log::error!("{:?}", err);
                         continue;
-                    },
+                    }
                 };
 
-                ReaderInteraction::ReadBlock { uid: dyn_uid, block, data }
+                ReaderInteraction::ReadBlock {
+                    uid: dyn_uid,
+                    block,
+                    data,
+                }
             }
             rfid_thingy::ReaderOperation::ReadSector { sector, key } => {
-                 let data = match rfid_thingy::helpers::read_sector(&mut selected, sector, &key) {
+                let data = match rfid_thingy::helpers::read_sector(&mut selected, sector, &key) {
                     Ok(data) => data,
                     Err(err) => {
                         log::error!("{:?}", err);
                         continue;
-                    },
+                    }
                 };
 
-                ReaderInteraction::ReadSector { uid: dyn_uid, sector, data }
-            },
+                ReaderInteraction::ReadSector {
+                    uid: dyn_uid,
+                    sector,
+                    data,
+                }
+            }
             rfid_thingy::ReaderOperation::ReadCard { keys } => {
                 let data = match rfid_thingy::helpers::read_card(&mut selected, &keys) {
                     Ok(data) => data,
                     Err(err) => {
                         log::error!("{:?}", err);
                         continue;
-                    },
+                    }
                 };
 
                 ReaderInteraction::ReadCard { uid: dyn_uid, data }
-            },
-            rfid_thingy::ReaderOperation::WriteBlock { block, key, data } => {
-
-
-                a
-            },
+            }
+            rfid_thingy::ReaderOperation::WriteBlock { block, key, data } => a,
         };
 
         Timer::after(Duration::from_secs(1)).await;

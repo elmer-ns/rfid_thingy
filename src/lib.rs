@@ -10,10 +10,10 @@ use serde_big_array::BigArray;
 
 use crate::rfid::{BLOCK_USIZE, CARD_USIZE, SECTOR_USIZE};
 
+pub mod helpers;
 pub mod rfid;
 pub mod web;
 pub mod wifi;
-pub mod helpers;
 
 extern crate alloc;
 
@@ -61,12 +61,12 @@ pub enum ReaderOperation {
         sector: u8,
         key: MifareKey,
         #[serde(with = "BigArray")]
-        data: [u8; BLOCK_USIZE*SECTOR_USIZE],
+        data: [u8; BLOCK_USIZE * SECTOR_USIZE],
     },
     WriteCard {
         key: [MifareKey; CARD_USIZE],
         #[serde(with = "BigArray")]
-        data: [u8; BLOCK_USIZE*SECTOR_USIZE*CARD_USIZE],
+        data: [u8; BLOCK_USIZE * SECTOR_USIZE * CARD_USIZE],
     },
 }
 
@@ -74,17 +74,17 @@ enum DataWithMeta {
     Block {
         data: [u8; BLOCK_USIZE],
         block: u8,
-        key: MifareKey,    
+        key: MifareKey,
     },
     Sector {
-        data: [u8; BLOCK_USIZE*SECTOR_USIZE],
+        data: [u8; BLOCK_USIZE * SECTOR_USIZE],
         sector: u8,
         key: MifareKey,
     },
     Card {
-        data: [u8; BLOCK_USIZE*SECTOR_USIZE*CARD_USIZE],
+        data: [u8; BLOCK_USIZE * SECTOR_USIZE * CARD_USIZE],
         key: [MifareKey; CARD_USIZE],
-    }
+    },
 }
 
 impl From<mfrc522::Uid> for Uid {
@@ -116,11 +116,11 @@ pub enum ReaderInteraction {
         uid: Uid,
         sector: u8,
         #[serde(with = "BigArray")]
-        data: [u8; BLOCK_USIZE*SECTOR_USIZE],
+        data: [u8; BLOCK_USIZE * SECTOR_USIZE],
     },
     ReadCard {
         uid: Uid,
         #[serde(with = "BigArray")]
-        data: [u8; BLOCK_USIZE*SECTOR_USIZE*CARD_USIZE],
+        data: [u8; BLOCK_USIZE * SECTOR_USIZE * CARD_USIZE],
     },
 }
