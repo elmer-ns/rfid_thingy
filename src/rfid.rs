@@ -49,9 +49,9 @@ pub struct CardInteraction<'r, E: Debug, COMM: Interface<Error = E>> {
     atqa: AtqA,
 }
 
-impl<'r, E: Debug, COMM: Interface<Error = E>> CardInteraction<'r, E, COMM> {
+impl<'c, 'r, E: Debug, COMM: Interface<Error = E>> CardInteraction<'r, E, COMM> {
     /// Select this card
-    pub fn select(&'r mut self) -> Result<SelectedCard<'r, E, COMM>, Error<E>> {
+    pub fn select(&'c mut self) -> Result<SelectedCard<'c, E, COMM>, Error<E>> {
         let uid = self.reader.select(&self.atqa).map_err(|err| Error::ReaderError(err))?;
 
         Ok(SelectedCard { reader: self.reader, uid })
@@ -64,8 +64,8 @@ pub struct SelectedCard<'r, E: Debug, COMM: Interface<Error = E>> {
     uid: Uid,
 }
 
-impl<'r, E: Debug, COMM: Interface<Error = E>> SelectedCard<'r, E, COMM> {
-    pub fn auth_sector(&'r mut self, sector: u8, key: &MifareKey) -> Result<AuthenticatedSector<'r, E, COMM>, Error<E>> {
+impl<'s, 'r, E: Debug, COMM: Interface<Error = E>> SelectedCard<'r, E, COMM> {
+    pub fn auth_sector(&'s mut self, sector: u8, key: &MifareKey) -> Result<AuthenticatedSector<'s, E, COMM>, Error<E>> {
         let block = sector * 4;
         self.reader.mf_authenticate(&self.uid, block, key).map_err(|err| Error::ReaderError(err))?;
 
@@ -148,5 +148,7 @@ pub const CARD_SIZE: u8 = 16;
 pub const BLOCK_USIZE: usize = BLOCK_SIZE as usize;
 pub const SECTOR_USIZE: usize = SECTOR_SIZE as usize;
 pub const CARD_USIZE: usize = CARD_SIZE as usize;
+
+pub const SAFE_SECTOR_USIZE: usize = SECTOR_USIZE - 1;
 
 type CardKeys = [MifareKey; CARD_USIZE];

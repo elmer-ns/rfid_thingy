@@ -13,6 +13,7 @@ use crate::rfid::{BLOCK_USIZE, CARD_USIZE, SECTOR_USIZE};
 pub mod rfid;
 pub mod web;
 pub mod wifi;
+pub mod helpers;
 
 extern crate alloc;
 
@@ -40,15 +41,32 @@ pub struct State {
 #[derive(Clone, Serialize)]
 pub enum ReaderOperation {
     None,
-    Read {
+    ReadBlock {
         block: u8,
-        read_sector: bool,
         key: MifareKey,
     },
-    Write {
-        block: u8,
-        data: CardData,
+    ReadSector {
+        sector: u8,
         key: MifareKey,
+    },
+    ReadCard {
+        keys: [MifareKey; CARD_USIZE],
+    },
+    WriteBlock {
+        block: u8,
+        key: MifareKey,
+        data: [u8; BLOCK_USIZE],
+    },
+    WriteSector {
+        sector: u8,
+        key: MifareKey,
+        #[serde(with = "BigArray")]
+        data: [u8; BLOCK_USIZE*SECTOR_USIZE],
+    },
+    WriteCard {
+        key: [MifareKey; CARD_USIZE],
+        #[serde(with = "BigArray")]
+        data: [u8; BLOCK_USIZE*SECTOR_USIZE*CARD_USIZE],
     },
 }
 
@@ -84,29 +102,25 @@ impl From<&mfrc522::Uid> for Uid {
 #[derive(Debug, Clone, Serialize)]
 pub struct Uid(Vec<u8>);
 
-#[derive(Debug, Copy, Clone, Serialize)]
-pub enum CardData {
-    #[serde(with = "BigArray")]
-    Block([u8; BLOCK_USIZE]),
-    #[serde(with = "BigArray")]
-    Sector([u8; BLOCK_USIZE*SECTOR_USIZE]),
-    #[serde(with = "BigArray")]
-    Card([u8; BLOCK_USIZE*SECTOR_USIZE*CARD_USIZE]),
-}
-
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ReaderInteraction {
     Found {
         uid: Uid,
     },
-    Read {
+    ReadBlock {
         uid: Uid,
         block: u8,
-        data: CardData,
+        data: [u8; BLOCK_USIZE],
     },
-    Write {
+    ReadSector {
         uid: Uid,
-        block: u8,
-        data: CardData,
+        sector: u8,
+        #[serde(with = "BigArray")]
+        data: [u8; BLOCK_USIZE*SECTOR_USIZE],
+    },
+    ReadCard {
+        uid: Uid,
+        #[serde(with = "BigArray")]
+        data: [u8; BLOCK_USIZE*SECTOR_USIZE*CARD_USIZE],
     },
 }

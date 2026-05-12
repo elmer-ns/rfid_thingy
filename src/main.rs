@@ -10,31 +10,19 @@
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
 
-use core::convert::Infallible;
 
 use embassy_executor::Spawner;
-use embassy_sync::blocking_mutex::Mutex;
 use embassy_time::{Duration, Timer};
-use embedded_hal_bus::spi::{DeviceError, ExclusiveDevice};
 use esp_hal::{
-    Blocking,
     clock::CpuClock,
-    delay::Delay,
-    gpio::{
-        Level, Output, OutputConfig, OutputPin,
-        interconnect::{PeripheralInput, PeripheralOutput},
-    },
-    spi::master::{Config, Instance, Spi},
     timer::timg::TimerGroup,
 };
 use esp_println::println;
 use log::info;
-use mfrc522::comm::blocking::spi::SpiInterface;
 
 use esp_backtrace as _;
 
-use lib::rfid::Reader;
-use rfid_thingy::{self as lib, CardData, ReaderInteraction, State, rfid::SECTOR_SIZE};
+use rfid_thingy::{self as lib, ReaderInteraction};
 use esp_hal::time::Rate;
 use esp_hal::rmt::Rmt;
 use esp_hal_smartled::smart_led_buffer;
@@ -92,7 +80,7 @@ async fn main(spawner: Spawner) -> ! {
     // GPIO 11 - MOSI
     // GPIO 12 - MISO
     // GPIO 10 - CS
-    let mut reader = init_reader(
+    let mut reader = rfid_thingy::helpers::init_reader(
         peripherals.SPI2,
         peripherals.GPIO9,
         peripherals.GPIO11,
@@ -152,67 +140,46 @@ async fn main(spawner: Spawner) -> ! {
             rfid_thingy::ReaderOperation::None => {
                 ReaderInteraction::Found { uid: dyn_uid}
             },
-            rfid_thingy::ReaderOperation::Read { block, read_sector, key } => {
-                let mut auth = match selected.auth_sector(block / SECTOR_SIZE, &key) {
-                    Ok(auth) => auth,
-                    Err(err) => {
-                        log::error!("Auth error: {:?}", err);
-                        continue;
-                    },
-                };
-                
-                let data = if read_sector {
-                    auth.read_sector().map(|sector| CardData::Sector(sector))
-                } else {
-                    let local_block = block % 4;
-                    auth.read_block(local_block).map(|block| CardData::Block(block))
-                };
-
-                let data = match data {
+            rfid_thingy::ReaderOperation::ReadBlock { block, key } => {
+                let data = match rfid_thingy::helpers::read_block(&mut selected, block, &key) {
                     Ok(data) => data,
                     Err(err) => {
-                        log::error!("Read error: {:?}", err);
+                        log::error!("{:?}", err);
                         continue;
                     },
                 };
 
-                ReaderInteraction::Read { uid: dyn_uid, block, data }
+                ReaderInteraction::ReadBlock { uid: dyn_uid, block, data }
+            }
+            rfid_thingy::ReaderOperation::ReadSector { sector, key } => {
+                 let data = match rfid_thingy::helpers::read_sector(&mut selected, sector, &key) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        log::error!("{:?}", err);
+                        continue;
+                    },
+                };
+
+                ReaderInteraction::ReadSector { uid: dyn_uid, sector, data }
             },
-            rfid_thingy::ReaderOperation::Write { block, data, key } => {
-                todo!()
+            rfid_thingy::ReaderOperation::ReadCard { keys } => {
+                let data = match rfid_thingy::helpers::read_card(&mut selected, &keys) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        log::error!("{:?}", err);
+                        continue;
+                    },
+                };
+
+                ReaderInteraction::ReadCard { uid: dyn_uid, data }
+            },
+            rfid_thingy::ReaderOperation::WriteBlock { block, key, data } => {
+
+
+                a
             },
         };
 
         Timer::after(Duration::from_secs(1)).await;
     }
-}
-
-/// Initialize the RFID reader. Simple helper function that takes required perhiperals and pins and produces a [Mfrc522] wrapped in a [Reader].
-fn init_reader<'d>(
-    spi: impl Instance + 'd,
-    sck: impl PeripheralOutput<'d>,
-    mosi: impl PeripheralOutput<'d>,
-    miso: impl PeripheralInput<'d>,
-    cs: impl OutputPin + 'd,
-) -> Option<
-    Reader<
-        DeviceError<esp_hal::spi::Error, Infallible>,
-        SpiInterface<
-            ExclusiveDevice<Spi<'d, Blocking>, Output<'d>, Delay>,
-            mfrc522::comm::blocking::spi::DummyDelay,
-        >,
-    >,
-> {
-    let spi: Spi<'_, esp_hal::Blocking> = Spi::new(spi, Config::default())
-        .unwrap()
-        .with_sck(sck)
-        .with_mosi(mosi)
-        .with_miso(miso);
-
-    let cs_pin = Output::new(cs, Level::Low, OutputConfig::default());
-
-    let device = ExclusiveDevice::new(spi, cs_pin, Delay::new()).unwrap();
-    let itf = SpiInterface::new(device);
-
-    Reader::new(itf)
 }
