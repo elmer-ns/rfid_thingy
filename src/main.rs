@@ -12,7 +12,7 @@ const PASSWORD: &str = env!("PASSWORD");
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use esp_hal::{clock::CpuClock, rmt::PulseCode, timer::timg::TimerGroup};
+use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use esp_println::println;
 use log::info;
 
@@ -20,9 +20,8 @@ use esp_backtrace as _;
 
 use esp_hal::rmt::Rmt;
 use esp_hal::time::Rate;
-use esp_hal_smartled::smart_led_buffer;
-use rfid_thingy::{self as lib, ReaderInteraction};
-use smart_leds::SmartLedsWrite;
+
+use rfid_thingy as lib;
 
 extern crate alloc;
 
@@ -85,8 +84,9 @@ async fn main(spawner: Spawner) -> ! {
     )
     .unwrap();
 
+    let frequency: Rate = Rate::from_mhz(80);
     spawner.must_spawn(lib::light_task(
-        Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap(),
+        Rmt::new(peripherals.RMT, frequency).unwrap(),
         peripherals.GPIO38,
     ));
 
