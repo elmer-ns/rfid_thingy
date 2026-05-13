@@ -10,7 +10,7 @@
 
 <body>
     <h1>Rfid Thingy</h1>
-    <h2>Status: <div>Inactive</div>
+    <h2>Status: <div id="status">Inactive</div>
     </h2>
     <button id="activate">Activate</button>
     <button id="deactivate">Deactivate</button>
@@ -19,17 +19,16 @@
     <div>
         <button>None</button>
     </div>
-    <div class="card">
-        <textarea cols="64" class="hex_code" name="hex_code" maxlength="1024"></textarea>
-        <button>WriteCard</button>
-    </div>
-    <div class="sector">
-        <textarea cols="16" class="hex_code" name="hex_code" maxlength="64"></textarea>
-        <button>WriteSector</button>
-    </div>
+
     <div class="block">
-        <textarea cols="16" class="hex_code" name="hex_code" maxlength="16"></textarea>
-        <button>WriteBlock</button>
+        <h3>Write to block</h3>
+        <div>
+            <h4>Hexadecimal</h4>
+            <textarea cols="16" class="hex_code" name="hex_code" maxlength="16"></textarea>
+            <button>Use Hexadecimal</button>
+        </div>
+
+        <button>Submit operation</button>
     </div>
 
     <script src="js/main.js"></script>

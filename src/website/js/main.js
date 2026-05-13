@@ -1,8 +1,11 @@
-// Hex Input
-var inputs = document.querySelectorAll(".hex_code");
+// Status
+const status_label = document.getElementById("status");
 
-for (let i = 0; inputs[i]; i++) {
-  let input = inputs[i];
+// Hex Input
+var hex_inputs = document.querySelectorAll(".hex_code");
+
+for (let i = 0; hex_inputs[i]; i++) {
+  let input = hex_inputs[i];
   console.log(input);
   input.addEventListener("input", (event) => {
     input.value = input.value.replace(/[^0-9a-fA-F]+$/, "");
@@ -21,7 +24,7 @@ activate.addEventListener("click", async (_) => {
     const response = await fetch("./api/reader/activate", {
       method: "post",
     });
-    console.log("Completed!", response);
+    status_label.innerHTML = "Active"
   } catch (err) {
     console.error(`Error: ${err}`);
   }
@@ -32,7 +35,7 @@ deactivate.addEventListener("click", async (_) => {
     const response = await fetch("./api/reader/deactivate", {
       method: "post",
     });
-    console.log("Completed!", response);
+    status_label.innerHTML = "Inactive"
   } catch (err) {
     console.error(`Error: ${err}`);
   }
