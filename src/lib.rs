@@ -2,13 +2,15 @@
 #![feature(impl_trait_in_assoc_type)]
 #![feature(never_type)]
 
+use core::cell::RefCell;
+
 use alloc::vec::Vec;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::{Blocking, peripherals::GPIO38, rmt::Rmt};
 use esp_hal_smartled::{smart_led_buffer};
 use mfrc522::MifareKey;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use smart_leds::{SmartLedsWrite, brightness};
 
@@ -39,8 +41,6 @@ pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> !
 
     loop {
         let active = STATE.lock(|state| state.reader_active);
-
-
 
         let new_state: Option<State> = match state {
             State::Active => {
@@ -99,10 +99,25 @@ macro_rules! mk_static {
     }};
 }
 
-pub static STATE: Mutex<CriticalSectionRawMutex, State> = Mutex::new(State {
+pub static STATE: StateMutex =  StateMutex(Mutex::new(RefCell::new(State {
     reader_active: false,
     reader_operation: ReaderOperation::None,
-});
+})));
+
+pub struct StateMutex(Mutex<CriticalSectionRawMutex, RefCell<State>>);
+
+impl StateMutex {
+    pub fn lock<F: FnOnce(&State) -> T, T>(&self, f: F) -> T {
+        self.0.lock(|state| f(&state.borrow()))
+    }
+
+    /// # Panics
+    /// Will panic if called re-entrantly, i.e. within another lock_mut or lock closure.
+    pub fn lock_mut<F: FnOnce(&mut State) -> T, T>(&self, f: F) -> T {
+        // SAFETY: Would panic before we could break aliasing rules
+        unsafe { self.0.lock_mut(|state| f(&mut state.borrow_mut())) }
+    }
+}
 
 #[derive(Serialize, Clone)]
 pub struct State {
@@ -110,7 +125,7 @@ pub struct State {
     pub reader_operation: ReaderOperation,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ReaderOperation {
     None,
     ReadBlock {

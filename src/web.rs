@@ -1,43 +1,27 @@
 use embassy_net::Stack;
-use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::Duration;
 use esp_println::println;
 use picoserve::{
-    AppRouter, AppWithStateBuilder, Router,
-    extract::State,
-    response::{File, IntoResponse},
-    routing::{self, PathRouter, get, post},
+    AppBuilder, AppRouter, Router, extract::Form, response::{File, IntoResponse}, routing::{self, PathRouter, get, post}
 };
 
-use crate::STATE;
+use crate::{ReaderOperation, STATE};
 
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
-#[derive(Clone)]
-pub struct WebState {
-    pub state: &'static Mutex<CriticalSectionRawMutex, crate::State>,
-}
-
 pub struct WebApp {
     pub router: &'static Router<
-        <Application as AppWithStateBuilder>::PathRouter,
-        <Application as AppWithStateBuilder>::State,
-    >,
+        <Application as AppBuilder>::PathRouter>,
     pub config: &'static picoserve::Config<Duration>,
 }
 
 pub struct Application {}
 
-#[derive(Clone)]
-struct AppState {}
+impl AppBuilder for Application {
+    type PathRouter = impl PathRouter;
 
-impl AppWithStateBuilder for Application {
-    type State = WebState;
-
-    type PathRouter = impl PathRouter<Self::State>;
-
-    fn build_app(self) -> Router<Self::PathRouter, Self::State> {
-        let router = Router::new().with_state(AppState {});
+    fn build_app(self) -> Router<Self::PathRouter> {
+        let router = Router::new();
 
         // Website
         let router = router
@@ -58,26 +42,27 @@ impl AppWithStateBuilder for Application {
         let router = router
             .route("/api/reader", get(get_state))
             .route("/api/reader/activate", post(activate_reader))
-            .route("/api/reader/deactivate", post(deactivate_reader));
+            .route("/api/reader/deactivate", post(deactivate_reader))
+            .route("/api/reader/operation", post(set_operation));
 
         router
     }
 }
 
-async fn get_state(State(WebState { state }): State<WebState>) -> impl IntoResponse {
-    state.lock(|state| picoserve::response::Json(state.clone()))
+async fn set_operation(Form(operation): Form<ReaderOperation>) -> impl IntoResponse {
+    STATE.lock_mut(|state| state.reader_operation = operation);
 }
 
-async fn activate_reader(
-    picoserve::extract::State(WebState { state }): picoserve::extract::State<WebState>,
-) -> impl IntoResponse {
-    unsafe { state.lock_mut(|state| state.reader_active = true) };
+async fn get_state() -> impl IntoResponse {
+    STATE.lock(|state| picoserve::response::Json(state.clone()))
 }
 
-async fn deactivate_reader(
-    picoserve::extract::State(WebState { state }): picoserve::extract::State<WebState>,
-) -> impl IntoResponse {
-    unsafe { state.lock_mut(|state| state.reader_active = false) };
+async fn activate_reader() -> impl IntoResponse {
+    STATE.lock_mut(|state| state.reader_active = true);
+}
+
+async fn deactivate_reader() -> impl IntoResponse {
+    STATE.lock_mut(|state| state.reader_active = false);
 }
 
 impl Default for WebApp {
@@ -118,7 +103,7 @@ pub async fn web_task(
     log::trace!("server task");
 
     picoserve::Server::new(
-        &router.shared().with_state(WebState { state: &STATE }),
+        &router,
         config,
         &mut http_buffer,
     )
