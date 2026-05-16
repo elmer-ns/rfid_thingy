@@ -187,5 +187,3 @@ pub const SECTOR_USIZE: usize = SECTOR_SIZE as usize;
 pub const CARD_USIZE: usize = CARD_SIZE as usize;
 
 pub const SAFE_SECTOR_USIZE: usize = SECTOR_USIZE - 1;
-
-type CardKeys = [MifareKey; CARD_USIZE];

@@ -33,7 +33,6 @@ pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> !
     enum State {
         Active,
         Inactive,
-        Detected { at: embassy_time::Instant },
     }
 
     let mut state = State::Inactive;
@@ -56,18 +55,6 @@ pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> !
                     None
                 }
             }
-            State::Detected { at } => {
-                const ACTIVE_FOR: Duration = Duration::from_millis(500);
-                if Instant::now().duration_since(at) > ACTIVE_FOR {
-                    if active {
-                        Some(State::Active)
-                    } else {
-                        Some(State::Inactive)
-                    }
-                } else {
-                    None
-                }
-            }
         };
 
         state = if let Some(new_state) = new_state {
@@ -79,7 +66,6 @@ pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> !
         let colors = match &state {
             State::Active => [smart_leds::colors::GREEN].into_iter(),
             State::Inactive => [smart_leds::colors::RED].into_iter(),
-            State::Detected { at: _ } => [smart_leds::colors::BLUE].into_iter(),
         };
 
         onboard_led.write(brightness(colors, 10)).unwrap();
@@ -200,6 +186,8 @@ pub struct Uid(Vec<u8>);
 #[derive(Debug, Clone, Serialize)]
 /// Event recorded by the main reader task
 pub enum ReaderEvent {
+    /// Setup is complete, and the main reader task has begun
+    Boot,
     Found {
         uid: Uid,
     },

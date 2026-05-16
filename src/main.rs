@@ -11,7 +11,7 @@ const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
 
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use esp_println::println;
 use log::info;
@@ -21,7 +21,7 @@ use esp_backtrace as _;
 use esp_hal::rmt::Rmt;
 use esp_hal::time::Rate;
 
-use rfid_thingy as lib;
+use rfid_thingy::{self as lib, HistoryItem, ReaderEvent, STATE};
 
 extern crate alloc;
 
@@ -89,6 +89,13 @@ async fn main(spawner: Spawner) -> ! {
         Rmt::new(peripherals.RMT, frequency).unwrap(),
         peripherals.GPIO38,
     ));
+
+    STATE.lock_mut(|state| {
+        state.history.push(HistoryItem {
+            event: ReaderEvent::Boot,
+            timestamp: Instant::now(),
+        })
+    });
 
     let mut last_active = false;
 
