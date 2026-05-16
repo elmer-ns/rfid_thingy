@@ -8,13 +8,13 @@ use alloc::vec::Vec;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::{Blocking, peripherals::GPIO38, rmt::Rmt};
-use esp_hal_smartled::{smart_led_buffer};
+use esp_hal_smartled::smart_led_buffer;
 use mfrc522::MifareKey;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use serde_big_array::BigArray;
 use smart_leds::{SmartLedsWrite, brightness};
 
-use crate::rfid::{BLOCK_USIZE, CARD_USIZE, SECTOR_USIZE};
+use crate::rfid::{BLOCK_USIZE, CARD_USIZE, SAFE_SECTOR_USIZE, SECTOR_USIZE};
 
 pub mod helpers;
 pub mod rfid;
@@ -27,9 +27,8 @@ extern crate alloc;
 pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> ! {
     let mut led_buffer = smart_led_buffer!(1);
 
-    let mut onboard_led = {
-        esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, gpio, &mut led_buffer)
-    };
+    let mut onboard_led =
+        { esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, gpio, &mut led_buffer) };
 
     enum State {
         Active,
@@ -63,7 +62,7 @@ pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> !
                     if active {
                         Some(State::Active)
                     } else {
-                        Some(State::Inactive) 
+                        Some(State::Inactive)
                     }
                 } else {
                     None
@@ -99,20 +98,25 @@ macro_rules! mk_static {
     }};
 }
 
-pub static STATE: StateMutex =  StateMutex(Mutex::new(RefCell::new(State {
+/// Stores main reader state which is used across tasks
+pub static STATE: StateMutex = StateMutex(Mutex::new(RefCell::new(State {
     reader_active: false,
     reader_operation: ReaderOperation::None,
+    history: Vec::new(),
 })));
 
+/// Safe abstraction over raw [Mutex] containing a [RefCell]. Stores main reader state which is used across tasks
 pub struct StateMutex(Mutex<CriticalSectionRawMutex, RefCell<State>>);
 
 impl StateMutex {
+    /// Lock the mutex, borrowing its contents for the duration of a closure
     pub fn lock<F: FnOnce(&State) -> T, T>(&self, f: F) -> T {
         self.0.lock(|state| f(&state.borrow()))
     }
 
+    /// Lock the mutex mutably, borrowing its contents mutably for the duration of a closure
     /// # Panics
-    /// Will panic if called re-entrantly, i.e. within another lock_mut or lock closure.
+    /// Will panic if called re-entrantly, i.e. within another [lock_mut] or [lock] closure.
     pub fn lock_mut<F: FnOnce(&mut State) -> T, T>(&self, f: F) -> T {
         // SAFETY: Would panic before we could break aliasing rules
         unsafe { self.0.lock_mut(|state| f(&mut state.borrow_mut())) }
@@ -120,57 +124,61 @@ impl StateMutex {
 }
 
 #[derive(Serialize, Clone)]
+/// Stores main reader state which is used across tasks
 pub struct State {
     pub reader_active: bool,
     pub reader_operation: ReaderOperation,
+    pub history: Vec<HistoryItem>,
+}
+
+#[derive(Clone)]
+/// Stores a [ReaderEvent] and the point in time at which it occured
+pub struct HistoryItem {
+    pub event: ReaderEvent,
+    pub timestamp: Instant,
+}
+
+impl Serialize for HistoryItem {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("HistoryItem", 2)?;
+        state.serialize_field("event", &self.event)?;
+        state.serialize_field("timestamp", &self.timestamp.as_millis())?;
+        state.end()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+/// Defines what different operations a reader can do when it detects a card
 pub enum ReaderOperation {
+    /// Do nothing (other than recording the interaction as a [ReaderEvent::Found])
     None,
-    ReadBlock {
-        block: u8,
-        key: MifareKey,
-    },
-    ReadSector {
-        sector: u8,
-        key: MifareKey,
-    },
-    ReadCard {
-        keys: [MifareKey; CARD_USIZE],
-    },
+    /// Read the data from a specific block on the detected card
+    ReadBlock { block: u8, key: MifareKey },
+    /// Read the data from a specific sector on the detected card
+    ReadSector { sector: u8, key: MifareKey },
+    /// Read all the data from the detected card
+    ReadCard { keys: [MifareKey; CARD_USIZE] },
+    /// Write some data to a specific block on the detected card
     WriteBlock {
         block: u8,
         key: MifareKey,
         data: [u8; BLOCK_USIZE],
     },
+    /// Write some data to a specific sector on the detected card (can only write to the 3 blocks in the sectors, for safety reasons)
     WriteSector {
         sector: u8,
         key: MifareKey,
         #[serde(with = "BigArray")]
-        data: [u8; BLOCK_USIZE * SECTOR_USIZE],
+        data: [u8; BLOCK_USIZE * SAFE_SECTOR_USIZE],
     },
+    /// Write some data to the detected card (can only write to the 3 first blocks in a sector, for safety reasons)
     WriteCard {
         key: [MifareKey; CARD_USIZE],
         #[serde(with = "BigArray")]
-        data: [u8; BLOCK_USIZE * SECTOR_USIZE * CARD_USIZE],
-    },
-}
-
-enum DataWithMeta {
-    Block {
-        data: [u8; BLOCK_USIZE],
-        block: u8,
-        key: MifareKey,
-    },
-    Sector {
-        data: [u8; BLOCK_USIZE * SECTOR_USIZE],
-        sector: u8,
-        key: MifareKey,
-    },
-    Card {
-        data: [u8; BLOCK_USIZE * SECTOR_USIZE * CARD_USIZE],
-        key: [MifareKey; CARD_USIZE],
+        data: [u8; BLOCK_USIZE * SAFE_SECTOR_USIZE * CARD_USIZE],
     },
 }
 
@@ -190,7 +198,8 @@ impl From<&mfrc522::Uid> for Uid {
 pub struct Uid(Vec<u8>);
 
 #[derive(Debug, Clone, Serialize)]
-pub enum ReaderInteraction {
+/// Event recorded by the main reader task
+pub enum ReaderEvent {
     Found {
         uid: Uid,
     },

@@ -2,7 +2,10 @@ use embassy_net::Stack;
 use embassy_time::Duration;
 use esp_println::println;
 use picoserve::{
-    AppBuilder, AppRouter, Router, extract::Form, response::{File, IntoResponse}, routing::{self, PathRouter, get, post}
+    AppBuilder, AppRouter, Router,
+    extract::Form,
+    response::{File, IntoResponse},
+    routing::{self, PathRouter, get, post},
 };
 
 use crate::{ReaderOperation, STATE};
@@ -10,8 +13,7 @@ use crate::{ReaderOperation, STATE};
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
 pub struct WebApp {
-    pub router: &'static Router<
-        <Application as AppBuilder>::PathRouter>,
+    pub router: &'static Router<<Application as AppBuilder>::PathRouter>,
     pub config: &'static picoserve::Config<Duration>,
 }
 
@@ -102,12 +104,8 @@ pub async fn web_task(
     println!("trace?");
     log::trace!("server task");
 
-    picoserve::Server::new(
-        &router,
-        config,
-        &mut http_buffer,
-    )
-    .listen_and_serve(task_id, stack, port, &mut tcp_rx_buffer, &mut tcp_tx_buffer)
-    .await
-    .into_never()
+    picoserve::Server::new(&router, config, &mut http_buffer)
+        .listen_and_serve(task_id, stack, port, &mut tcp_rx_buffer, &mut tcp_tx_buffer)
+        .await
+        .into_never()
 }
