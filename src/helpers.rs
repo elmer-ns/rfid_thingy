@@ -132,15 +132,14 @@ unsafe impl Pod for CardDataSingle {}
 
 pub fn write_card<'s, 'r, E: Debug, COMM: Interface<Error = E>>(
     selected: &'s mut SelectedCard<'r, E, COMM>,
-    block: u8,
-    key: &MifareKey,
+    keys: &[MifareKey; CARD_USIZE],
     data: [u8; BLOCK_USIZE * SAFE_SECTOR_USIZE * CARD_USIZE],
 ) -> Result<(), Error<E>> {
     let chunks: [[u8; BLOCK_USIZE * SAFE_SECTOR_USIZE]; CARD_USIZE] =
         bytemuck::cast(CardDataSingle(data));
 
     for (i, chunk) in chunks.into_iter().enumerate() {
-        write_sector(selected, block, key, chunk)?;
+        write_sector(selected, i as u8, &keys[i], chunk)?;
     }
 
     Ok(())

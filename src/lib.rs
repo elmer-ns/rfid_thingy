@@ -207,4 +207,15 @@ pub enum ReaderEvent {
         #[serde(with = "BigArray")]
         data: [u8; BLOCK_USIZE * SECTOR_USIZE * CARD_USIZE],
     },
+    WroteBlock {
+        uid: Uid,
+        block: u8,
+    },
+    WroteSector {
+        uid: Uid,
+        sector: u8,
+    },
+    WroteCard {
+        uid: Uid,
+    },
 }
