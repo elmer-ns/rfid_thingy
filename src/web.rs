@@ -52,19 +52,21 @@ impl AppBuilder for Application {
 }
 
 async fn set_operation(Form(operation): Form<ReaderOperation>) -> impl IntoResponse {
-    STATE.lock_mut(|state| state.reader_operation = operation);
+    STATE.lock(|state| state.reader_operation = operation).await;
 }
 
 async fn get_state() -> impl IntoResponse {
-    STATE.lock(|state| picoserve::response::Json(state.clone()))
+    STATE
+        .lock(|state| picoserve::response::Json(state.clone()))
+        .await
 }
 
 async fn activate_reader() -> impl IntoResponse {
-    STATE.lock_mut(|state| state.reader_active = true);
+    STATE.lock(|state| state.reader_active = true).await;
 }
 
 async fn deactivate_reader() -> impl IntoResponse {
-    STATE.lock_mut(|state| state.reader_active = false);
+    STATE.lock(|state| state.reader_active = false).await;
 }
 
 impl Default for WebApp {

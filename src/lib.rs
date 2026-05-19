@@ -2,13 +2,12 @@
 #![feature(impl_trait_in_assoc_type)]
 #![feature(never_type)]
 
-use core::cell::RefCell;
-
 use alloc::vec::Vec;
-use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::{Blocking, peripherals::GPIO38, rmt::Rmt};
 use esp_hal_smartled::smart_led_buffer;
+use log::info;
 use mfrc522::MifareKey;
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use serde_big_array::BigArray;
@@ -30,47 +29,43 @@ pub async fn light_task(rmt: Rmt<'static, Blocking>, gpio: GPIO38<'static>) -> !
     let mut onboard_led =
         { esp_hal_smartled::SmartLedsAdapter::new(rmt.channel0, gpio, &mut led_buffer) };
 
+    #[derive(PartialEq, Eq)]
     enum State {
+        Uninit,
         Active,
         Inactive,
     }
 
-    let mut state = State::Inactive;
+    let mut state = State::Uninit;
 
     loop {
-        let active = STATE.lock(|state| state.reader_active);
+        Timer::after(Duration::from_millis(500)).await;
 
-        let new_state: Option<State> = match state {
-            State::Active => {
-                if !active {
-                    Some(State::Inactive)
-                } else {
-                    None
-                }
-            }
-            State::Inactive => {
-                if active {
-                    Some(State::Active)
-                } else {
-                    None
-                }
+        let active = STATE
+            .lock(|state: &mut crate::State| state.reader_active)
+            .await;
+
+        let new_state = {
+            if active {
+                State::Active
+            } else {
+                State::Inactive
             }
         };
 
-        state = if let Some(new_state) = new_state {
-            new_state
-        } else {
+        if new_state == state {
             continue;
-        };
+        } else {
+            state = new_state;
+        }
 
         let colors = match &state {
             State::Active => [smart_leds::colors::GREEN].into_iter(),
             State::Inactive => [smart_leds::colors::RED].into_iter(),
+            State::Uninit => unreachable!(),
         };
 
         onboard_led.write(brightness(colors, 10)).unwrap();
-
-        Timer::after(Duration::from_millis(500)).await;
     }
 }
 
@@ -85,27 +80,20 @@ macro_rules! mk_static {
 }
 
 /// Stores main reader state which is used across tasks
-pub static STATE: StateMutex = StateMutex(Mutex::new(RefCell::new(State {
+pub static STATE: StateMutex = StateMutex(Mutex::new(State {
     reader_active: false,
     reader_operation: ReaderOperation::None,
     history: Vec::new(),
-})));
+}));
 
 /// Safe abstraction over raw [Mutex] containing a [RefCell]. Stores main reader state which is used across tasks
-pub struct StateMutex(Mutex<CriticalSectionRawMutex, RefCell<State>>);
+pub struct StateMutex(Mutex<CriticalSectionRawMutex, State>);
 
 impl StateMutex {
     /// Lock the mutex, borrowing its contents for the duration of a closure
-    pub fn lock<F: FnOnce(&State) -> T, T>(&self, f: F) -> T {
-        self.0.lock(|state| f(&state.borrow()))
-    }
-
-    /// Lock the mutex mutably, borrowing its contents mutably for the duration of a closure
-    /// # Panics
-    /// Will panic if called re-entrantly, i.e. within another [lock_mut] or [lock] closure.
-    pub fn lock_mut<F: FnOnce(&mut State) -> T, T>(&self, f: F) -> T {
-        // SAFETY: Would panic before we could break aliasing rules
-        unsafe { self.0.lock_mut(|state| f(&mut state.borrow_mut())) }
+    pub async fn lock<F: FnOnce(&mut State) -> T, T>(&self, f: F) -> T {
+        let mut value = self.0.lock().await;
+        f(&mut value)
     }
 }
 

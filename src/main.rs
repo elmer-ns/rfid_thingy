@@ -91,19 +91,25 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.GPIO38,
     ));
 
-    STATE.lock_mut(|state| {
-        state.history.push(HistoryItem {
-            event: ReaderEvent::Boot,
-            timestamp: Instant::now(),
+    STATE
+        .lock(|state| {
+            state.history.push(HistoryItem {
+                event: ReaderEvent::Boot,
+                timestamp: Instant::now(),
+            });
         })
-    });
+        .await;
 
     let mut last_active = false;
 
+    info!("loop start!");
+
     loop {
+        Timer::after(Duration::from_secs(1)).await;
+
         let state = &lib::STATE;
 
-        let active = state.lock(|state| state.reader_active);
+        let active = state.lock(|state| state.reader_active).await;
 
         {
             if active && !last_active {
@@ -142,7 +148,7 @@ async fn main(spawner: Spawner) -> ! {
 
         log::info!("Found and selected card");
 
-        let op = state.lock(|state| state.reader_operation.clone());
+        let op = state.lock(|state| state.reader_operation.clone()).await;
 
         let event = match op {
             lib::ReaderOperation::None => ReaderEvent::Found { uid: dyn_uid },
@@ -228,13 +234,13 @@ async fn main(spawner: Spawner) -> ! {
             }
         };
 
-        STATE.lock_mut(|state| {
-            state.history.push(HistoryItem {
-                event,
-                timestamp: Instant::now(),
+        STATE
+            .lock(|state| {
+                state.history.push(HistoryItem {
+                    event,
+                    timestamp: Instant::now(),
+                })
             })
-        });
-
-        Timer::after(Duration::from_secs(1)).await;
+            .await;
     }
 }
