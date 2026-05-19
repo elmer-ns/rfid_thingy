@@ -1,14 +1,15 @@
+use alloc::{string::ToString, vec::Vec};
 use embassy_net::Stack;
-use embassy_time::Duration;
+use embassy_time::{Duration, Instant};
 use esp_println::println;
 use picoserve::{
     AppBuilder, AppRouter, Router,
-    extract::Form,
+    extract::{Form, Json},
     response::{File, IntoResponse},
     routing::{self, PathRouter, get, post},
 };
 
-use crate::{ReaderOperation, STATE};
+use crate::{HistoryItem, ReaderOperation, STATE};
 
 pub const WEB_TASK_POOL_SIZE: usize = 2;
 
@@ -42,7 +43,11 @@ impl AppBuilder for Application {
 
         // API
         let router = router
-            .route("/api/reader", get(get_state))
+            .route(
+                "/api/now",
+                get(async || Instant::now().as_millis().to_string()),
+            )
+            .route("/api/reader/history", get(get_history))
             .route("/api/reader/activate", post(activate_reader))
             .route("/api/reader/deactivate", post(deactivate_reader))
             .route("/api/reader/operation", post(set_operation));
@@ -51,14 +56,13 @@ impl AppBuilder for Application {
     }
 }
 
-async fn set_operation(Form(operation): Form<ReaderOperation>) -> impl IntoResponse {
-    STATE.lock(|state| state.reader_operation = operation).await;
+async fn get_history() -> Json<Vec<HistoryItem>> {
+    let history = STATE.lock(|state| state.history.clone()).await;
+    Json(history)
 }
 
-async fn get_state() -> impl IntoResponse {
-    STATE
-        .lock(|state| picoserve::response::Json(state.clone()))
-        .await
+async fn set_operation(Form(operation): Form<ReaderOperation>) -> impl IntoResponse {
+    STATE.lock(|state| state.reader_operation = operation).await;
 }
 
 async fn activate_reader() -> impl IntoResponse {

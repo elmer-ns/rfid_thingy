@@ -7,7 +7,6 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::{Blocking, peripherals::GPIO38, rmt::Rmt};
 use esp_hal_smartled::smart_led_buffer;
-use log::info;
 use mfrc522::MifareKey;
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use serde_big_array::BigArray;

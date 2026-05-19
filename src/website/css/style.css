@@ -1,3 +1,11 @@
+p,
+h1,
+h2,
+h3 {
+    margin: 0px;
+    padding: 0px;
+}
+
 textarea {
     width: 16ch;
     word-wrap: break-word;
@@ -8,4 +16,35 @@ textarea {
 
 .card textarea {
     width: 64ch;
+}
+
+.history_item {
+    background-color: slategray;
+    padding: 25px;
+    border-radius: 5px;
+
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+
+    margin: 5px;
+}
+
+.history_item h3 {
+    font-size: 2rem;
+}
+
+.history_item p {
+    grid-column-start: 1;
+    grid-column-end: 3;
+
+    font-size: 1.25rem;
+}
+
+.history_item time {
+    text-align: end;
+    font-style: italic;
+    font-size: 1.25rem;
+
+    align-self: center;
 }
